@@ -220,13 +220,18 @@ function layout(W,S,J,measure){
     return{c,w:measure(c)+gap,rot:0,sc:1,dy:0}};
   for(const para of $('#txt').value.split('\n')){
     let line=[],x=0;
-    for(const word of para.split(/ +/)){
+    for(const word of para.split(/[ \t\u00a0\u2009\u202f]+/)){
       if(!word)continue;
       const gs=[...word].map(glyph),ww=gs.reduce((s,g)=>s+g.w,0);
       const s=sp*(1+(R()-.5)*J*.6);
       if(line.length&&x+s+ww>W){lines.push(line);line=[];x=0}
       if(line.length){line.push({sp:s});x+=s}
-      line.push(...gs);x+=ww;
+      if(ww<=W-x){line.push(...gs);x+=ww;continue}
+      /* Wort länger als die Zeile: Buchstabe für Buchstabe umbrechen */
+      for(const g of gs){
+        if(line.length&&x+g.w>W){lines.push(line);line=[];x=0}
+        line.push(g);x+=g.w;
+      }
     }
     lines.push(line);
   }
