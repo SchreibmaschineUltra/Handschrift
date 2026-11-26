@@ -45,9 +45,13 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,#pad:focus-visib
 label{display:block;font-weight:600;font-size:14px;margin:14px 0 4px}
 textarea{width:100%;min-height:150px;font:16px/1.5 Manrope,system-ui,sans-serif;padding:12px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);resize:vertical}
 input[type=range]{width:100%;accent-color:var(--blue);height:32px}
-.inks{display:flex;gap:8px}
-.inks button{width:44px;padding:0;border-width:3px}
-.inks button[aria-pressed=true]{border-color:var(--red)}
+.inks{display:flex;gap:8px;flex-wrap:wrap}
+.inks button,.inks .pick{position:relative;width:64px;height:52px;padding:0;border:3px solid var(--line);border-radius:10px;cursor:pointer;display:flex;align-items:flex-end;justify-content:center}
+.inks span{font:600 11px Manrope,system-ui,sans-serif;color:#fff;margin-bottom:4px;text-shadow:0 1px 2px rgba(0,0,0,.6);pointer-events:none}
+.inks .pick{background:conic-gradient(#e53935,#fdd835,#43a047,#1e88e5,#8e24aa,#e53935)}
+.inks .pick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+.inks [aria-pressed=true]{border-color:var(--red)}
+.inks .pick:focus-within{outline:3px solid var(--red);outline-offset:2px}
 #outWrap{background:transparent}
 #out{display:block;width:100%}
 .note{font-size:13px;color:var(--mute);margin-top:8px}
@@ -153,7 +157,7 @@ const PYFILES={"gen.py": "import json\nfrom goodnotes.model import Document, new
 const $=s=>document.querySelector(s);
 const CH=[...'abcdefghijklmnopqrstuvwxyzäöüß',...'ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ',...'0123456789',...'.,!?-:;\'"()&@€'];
 const BASE=.7,LINES=[[.2,0],[.45,0],[.7,1],[.88,0]];
-const INKS=[['#1d3596','Blau'],['#1a1a1a','Schwarz'],['#7a1f1f','Bordeaux']];
+const INKS=[['#1a1a1a','Schwarz'],['#1d3596','Blau']];
 let G={},cur=0,strokes=[],drawing=null,seed=1,ink=INKS[0][0];
 try{G=JSON.parse(localStorage.getItem('hs-glyphs')||'{}')||{}}catch(e){G={}}
 const save=()=>{try{localStorage.setItem('hs-glyphs',JSON.stringify(G))}catch(e){}};
@@ -311,9 +315,20 @@ function makePdf(){
   const b=new Uint8Array(f.length);for(let i=0;i<f.length;i++)b[i]=f.charCodeAt(i)&255;
   return{bytes:b,pages:pages.length};
 }
-$('#inks').innerHTML=INKS.map(([c,n],i)=>`<button data-c="${c}" aria-label="${n}" aria-pressed="${i===0}" style="background:${c}"></button>`).join('');
-$('#inks').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ink=b.dataset.c;
-  for(const x of $('#inks').children)x.setAttribute('aria-pressed',x===b);drawPad();ui();render()});
+$('#inks').innerHTML=INKS.map(([c,n])=>`<button data-c="${c}" aria-label="${n}" aria-pressed="false" style="background:${c}"><span>${n}</span></button>`).join('')
+  +'<label class="pick" aria-pressed="false"><input type="color" id="inkPick" value="#2e7d32" aria-label="Eigene Farbe wählen"><span>Eigene</span></label>';
+function setInk(c,custom){
+  ink=c;
+  for(const x of $('#inks').children)x.setAttribute('aria-pressed',custom?x.classList.contains('pick'):x.dataset.c===c);
+  if(custom){$('#inkPick').value=c;$('.pick').style.background=c}
+  try{localStorage.setItem('hs-ink',JSON.stringify([c,!!custom]))}catch(e){}
+  drawPad();ui();render();
+}
+$('#inks').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setInk(b.dataset.c,false)});
+$('#inkPick').addEventListener('input',e=>setInk(e.target.value,true));
+$('#inkPick').addEventListener('click',()=>setInk($('#inkPick').value,true));
+try{const v=JSON.parse(localStorage.getItem('hs-ink')||'null');if(v&&/^#[0-9a-f]{6}$/i.test(v[0])){ink=v[0];if(v[1]){$('#inkPick').value=v[0];$('.pick').style.background=v[0]}}}catch(e){}
+for(const x of $('#inks').children)x.setAttribute('aria-pressed',x.classList.contains('pick')?$('.pick').style.background!=='':x.dataset.c===ink);
 const JIT=[[0,'wie gedruckt'],[11,'sehr ordentlich'],[26,'ordentlich'],[41,'natürlich'],[61,'locker'],[81,'sehr lebendig']];
 const valShow=()=>{
   $('#sizeVal').textContent=(+$('#sSize').value*.35*.5*25.4/72).toFixed(1).replace('.',',')+' mm';
