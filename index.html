@@ -59,6 +59,7 @@ select{width:100%;background:var(--bg)}
 .exp button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:10px 16px;text-align:left;min-height:56px}
 .exp b{font-size:16px}.exp span{font-weight:400;font-size:13px;opacity:.85}
 .how{margin-top:12px}
+.hint{font-size:13px;color:var(--mute);margin:2px 0 0;line-height:1.45}
 .ready{margin-top:10px;padding:12px 14px;border:1.5px solid var(--blue);border-radius:12px}
 .ready .note{margin:0}
 @media(prefers-reduced-motion:reduce){.prog i{transition:none}}
@@ -112,7 +113,9 @@ vielen Dank für das schöne Paket! Die Kekse waren nach zwei Tagen schon weg. I
 Viele liebe Grüße
 Max</textarea>
 <label for="sSize">Schriftgröße: <span id="sizeVal"></span></label><input type="range" id="sSize" min="40" max="160" value="90">
+<p class="hint">Ungefähre Höhe der Großbuchstaben auf dem Papier.</p>
 <label for="sJit">Unregelmäßigkeit: <span id="jitVal"></span></label><input type="range" id="sJit" min="0" max="100" value="45">
+<p class="hint">Wie natürlich die Schrift wirkt: Buchstaben kippen leicht, sind mal größer, mal kleiner und sitzen nicht ganz gerade auf der Linie. Links wirkt es wie gedruckt, rechts wie schnell von Hand geschrieben. „Neu mischen“ würfelt die Abweichungen neu.</p>
 <label>Tinte</label>
 <div class="inks" id="inks"></div>
 <label for="paper">Papier</label>
@@ -311,7 +314,10 @@ function makePdf(){
 $('#inks').innerHTML=INKS.map(([c,n],i)=>`<button data-c="${c}" aria-label="${n}" aria-pressed="${i===0}" style="background:${c}"></button>`).join('');
 $('#inks').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ink=b.dataset.c;
   for(const x of $('#inks').children)x.setAttribute('aria-pressed',x===b);drawPad();ui();render()});
-const valShow=()=>{$('#sizeVal').textContent=$('#sSize').value;$('#jitVal').textContent=$('#sJit').value+' %'};
+const JIT=[[0,'wie gedruckt'],[11,'sehr ordentlich'],[26,'ordentlich'],[41,'natürlich'],[61,'locker'],[81,'sehr lebendig']];
+const valShow=()=>{
+  $('#sizeVal').textContent=(+$('#sSize').value*.35*.5*25.4/72).toFixed(1).replace('.',',')+' mm';
+  const j=+$('#sJit').value;let t=JIT[0][1];for(const[v,n]of JIT)if(j>=v)t=n;$('#jitVal').textContent=t};
 valShow();
 for(const id of['#txt','#sSize','#sJit','#paper'])$(id).addEventListener('input',()=>{valShow();render()});
 try{const v=localStorage.getItem('hs-gnsize');if(v)$('#gnSize').value=v}catch(e){}
