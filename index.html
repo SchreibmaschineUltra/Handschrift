@@ -48,7 +48,7 @@ input[type=range]{width:100%;accent-color:var(--blue);height:32px}
 .inks{display:flex;gap:8px}
 .inks button{width:44px;padding:0;border-width:3px}
 .inks button[aria-pressed=true]{border-color:var(--red)}
-#outWrap{background:#fff;border-radius:6px;box-shadow:0 1px 0 var(--line),0 10px 30px rgba(20,30,80,.12)}
+#outWrap{background:transparent}
 #out{display:block;width:100%}
 .note{font-size:13px;color:var(--mute);margin-top:8px}
 #imgBox img{max-width:100%;border:1.5px solid var(--line);border-radius:6px;margin-top:10px}
@@ -104,7 +104,7 @@ select{width:100%;background:var(--bg)}
 <section class="band alt"><div class="wrap cols out">
 <div>
 <h2>2 · Text eingeben</h2>
-<p class="sub">Grau = noch nicht geschrieben, dort springt eine Platzhalterschrift ein.</p>
+<p class="sub">Die Vorschau zeigt die ganze Seite im gewählten Format. Grau = noch nicht geschrieben, dort springt eine Platzhalterschrift ein.</p>
 <label for="txt">Dein Text</label>
 <textarea id="txt">Liebe Oma,
 vielen Dank für das schöne Paket! Die Kekse waren nach zwei Tagen schon weg. Ich freue mich riesig auf Weihnachten bei euch.
@@ -119,7 +119,7 @@ Max</textarea>
 <div class="inks" id="inks"></div>
 <label for="paper">Papier</label>
 <select id="paper"><option value="lined">Liniert</option><option value="grid">Kariert</option><option value="blank">Blanko</option></select>
-<label for="gnSize">Seitenformat für GoodNotes</label>
+<label for="gnSize">Seitenformat</label>
 <select id="gnSize"><option value="a4">A4</option><option value="a3">A3</option><option value="standard">GoodNotes Standard</option></select>
 <div class="row"><button id="bMix">Neu mischen</button></div>
 <h2 style="margin-top:26px">3 · Exportieren</h2>
@@ -255,12 +255,6 @@ function paintCanvas(ctx,W,H,transparent){
       ctx.restore()}});
   return need;
 }
-function render(){
-  const W=wrapEl.clientWidth||600,d=devicePixelRatio||1;
-  const H=paintCanvas(oc,W,null);
-  out.width=W*d;out.height=H*d;out.style.height=H+'px';oc.setTransform(d,0,0,d,0,0);
-  paintCanvas(oc,W,H,false);
-}
 function bigCanvas(transparent){
   const W=wrapEl.clientWidth||600,k=3,c=document.createElement('canvas'),x=c.getContext('2d');
   x.font=CAV(10);const H=paintCanvas(x,W,null);
@@ -314,7 +308,7 @@ $('#inks').addEventListener('click',e=>{const b=e.target.closest('button');if(!b
   for(const x of $('#inks').children)x.setAttribute('aria-pressed',x===b);drawPad();ui();render()});
 for(const id of['#txt','#sSize','#sJit','#sGap','#sW','#paper'])$(id).addEventListener('input',render);
 try{const v=localStorage.getItem('hs-gnsize');if(v)$('#gnSize').value=v}catch(e){}
-$('#gnSize').addEventListener('change',e=>{try{localStorage.setItem('hs-gnsize',e.target.value)}catch(x){}});
+$('#gnSize').addEventListener('change',e=>{try{localStorage.setItem('hs-gnsize',e.target.value)}catch(x){}render()});
 $('#bMix').onclick=()=>{seed++;render()};
 
 /* Export */
@@ -358,37 +352,69 @@ for(const[id,tr]of[['#ePng',false],['#eTr',true]])$(id).onclick=()=>{const c=big
   if(IN_CLAUDE&&!dl){showImg(c);em('');return}
   c.toBlob(b=>{if(b)saveFile(`Handschrift-${stamp()}${tr?'-transparent':''}.png`,b,'Bild gespeichert.')},'image/png')};
 
-/* GoodNotes: Seite in GoodNotes-Einheiten setzen (A4 = 1091.34 x 1543.46) */
-function gnSpec(){
-  const K=11/6,mm=v=>v*72/25.4*K,SZ={a4:[mm(210),mm(297)],a3:[mm(297),mm(420)],standard:[455.04*K,588.45*K]};
-  const size=$('#gnSize').value,[GW,GH]=SZ[size]||SZ.a4,o=opts(),ML=80,MR=70;
-  const S=o.S*.35*K,want=S*o.G;let tpl='blank',first=95,step=want;
+/* GoodNotes: Seiten im gewählten Format setzen (Einheiten wie GoodNotes, 1 pt = 11/6) */
+const K=11/6,MMU=v=>v*72/25.4*K,GNSZ={a4:[MMU(210),MMU(297)],a3:[MMU(297),MMU(420)],standard:[455.04*K,588.45*K]};
+const mctx=document.createElement('canvas').getContext('2d');
+function gnLayout(){
+  const size=$('#gnSize').value,[GW,GH]=GNSZ[size]||GNSZ.a4,o=opts(),ML=80,MR=70;
+  const S=o.S*.35*K,FS=S*.62,want=S*o.G;let tpl='blank',first=95,step=want,rule=null;
   if(o.paper==='lined'){
     let best=null;
-    for(const[t,f,s]of[['narrow_ruled',50.25*K,17.5*K],['wide_ruled',49.75*K,25*K]]){
-      const k=Math.max(1,Math.round(want/s)),err=Math.abs(k*s-want)/want;
-      if(!best||err<best.err)best={t,f,s:k*s,err}}
-    tpl=best.t;first=best.f;step=best.s;
-    while(first<S*.55)first+=best.s;
+    for(const[t,f,s]of[['narrow_ruled',50,17.5],['wide_ruled',49.5,25]]){
+      const rs=s*K,k=Math.max(1,Math.round(want/rs)),err=Math.abs(k*rs-want)/want;
+      if(!best||err<best.err)best={t,f:(f+.25)*K,rs,s:k*rs,err,end:t}}
+    tpl=best.t;first=best.f;step=best.s;rule={f:best.f,s:best.rs};
+    while(first<S*.55)first+=best.rs;
   }else if(o.paper==='grid'){
-    const g=16*K,k=Math.max(1,Math.round(want/g));tpl='squared';step=k*g;first=15.75*K;
+    const g=16*K,k=Math.max(1,Math.round(want/g));tpl='squared';step=k*g;first=15.75*K;rule={g};
     while(first<Math.max(80,S*.55))first+=g;
   }
-  const lines=layout(GW-ML-MR,S,o.J,()=>S*.3);
+  mctx.font=CAV(FS);
+  const lines=layout(GW-ML-MR,S,o.J,c=>mctx.measureText(c).width);
   const bottom=GH-40,pages=[[]];let base=first,missing=0;
   for(const line of lines){
     if(base>bottom){pages.push([]);base=first}
-    const pg=pages[pages.length-1];
-    for(const g of line){
-      if(!g.v){missing++;continue}
-      const cs=Math.cos(g.rot)*g.sc,sn=Math.sin(g.rot)*g.sc,tx=ML+g.x,ty=base+g.dy;
-      for(const st of g.v)pg.push(st.map(p=>{const x=(p[0]-g.a)*S,y=(p[1]-BASE)*S;
-        return[+(tx+cs*x-sn*y).toFixed(2),+(ty+sn*x+cs*y).toFixed(2)]}));
-    }
+    pages[pages.length-1].push({base,line});
+    for(const g of line)if(!g.v)missing++;
     base+=step;
   }
+  return{size,GW,GH,ML,S,FS,SW:o.SW,tpl,rule,pages,missing};
+}
+function gnPaper(ctx,L){
+  const ln=(a,b,c,d)=>{ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.stroke()};
+  ctx.lineWidth=.5*K;
+  if(L.tpl==='squared'){ctx.strokeStyle='#d9e0f2';const g=L.rule.g;
+    for(let y=15.75*K;y<L.GH;y+=g)ln(0,y,L.GW,y);for(let x=15.75*K;x<L.GW;x+=g)ln(x,0,x,L.GH)}
+  else if(L.rule){ctx.strokeStyle='#c8d4f0';for(let y=L.rule.f;y+.25*K<=L.GH-13.2*K;y+=L.rule.s)ln(0,y,L.GW,y)}
+}
+function render(){
+  const L=gnLayout(),W=wrapEl.clientWidth||600,k=W/L.GW,PH=L.GH*k,GAP=18,n=L.pages.length,d=devicePixelRatio||1;
+  const H=Math.ceil(n*PH+(n-1)*GAP);
+  out.width=W*d;out.height=H*d;out.style.height=H+'px';oc.setTransform(d,0,0,d,0,0);oc.clearRect(0,0,W,H);
+  L.pages.forEach((pg,i)=>{
+    const y0=i*(PH+GAP);
+    oc.save();oc.translate(0,y0);
+    oc.fillStyle='#fff';oc.fillRect(0,0,W,PH);oc.strokeStyle='#cfd5e6';oc.lineWidth=1;oc.strokeRect(.5,.5,W-1,PH-1);
+    oc.scale(k,k);gnPaper(oc,L);oc.font=CAV(L.FS);
+    for(const{base,line}of pg)for(const g of line){
+      oc.save();oc.translate(L.ML+g.x,base+g.dy);oc.rotate(g.rot);oc.scale(g.sc,g.sc);
+      if(g.v){inkStyle(oc,L.S*.022*L.SW,ink);for(const s of g.v)path(oc,s,p=>[(p[0]-g.a)*L.S,(p[1]-BASE)*L.S])}
+      else{oc.fillStyle='#a7adc2';oc.fillText(g.c,0,0)}
+      oc.restore()}
+    oc.restore();
+    oc.fillStyle='#8a93b8';oc.font='600 12px Manrope, system-ui, sans-serif';oc.textAlign='right';
+    oc.fillText(`Seite ${i+1} von ${n} · ${{a4:'A4',a3:'A3',standard:'GoodNotes Standard'}[L.size]}`,W-10,y0+PH-10);oc.textAlign='left';
+  });
+}
+function gnSpec(){
+  const L=gnLayout(),pages=L.pages.map(pg=>{const out=[];
+    for(const{base,line}of pg)for(const g of line){if(!g.v)continue;
+      const cs=Math.cos(g.rot)*g.sc,sn=Math.sin(g.rot)*g.sc,tx=L.ML+g.x,ty=base+g.dy;
+      for(const st of g.v)out.push(st.map(p=>{const x=(p[0]-g.a)*L.S,y=(p[1]-BASE)*L.S;
+        return[+(tx+cs*x-sn*y).toFixed(2),+(ty+sn*x+cs*y).toFixed(2)]}))}
+    return out});
   const col=[1,3,5].map(i=>parseInt(ink.slice(i,i+2),16)/255);
-  return{spec:{title:'Handschrift '+stamp(),size,template:tpl,pages,color:[...col,1],thickness:+Math.max(.6,S*.022*o.SW).toFixed(2)},missing};
+  return{spec:{title:'Handschrift '+stamp(),size:L.size,template:L.tpl,pages,color:[...col,1],thickness:+Math.max(.6,L.S*.022*L.SW).toFixed(2)},missing:L.missing};
 }
 let pyReady=null;
 function loadPy(){
