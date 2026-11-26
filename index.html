@@ -59,6 +59,8 @@ select{width:100%;background:var(--bg)}
 .exp button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:10px 16px;text-align:left;min-height:56px}
 .exp b{font-size:16px}.exp span{font-weight:400;font-size:13px;opacity:.85}
 .how{margin-top:12px}
+.ready{margin-top:10px;padding:12px 14px;border:1.5px solid var(--blue);border-radius:12px}
+.ready .note{margin:0}
 @media(prefers-reduced-motion:reduce){.prog i{transition:none}}
 </style></head><body>
 <header class="band"><div class="wrap">
@@ -126,6 +128,10 @@ Max</textarea>
 <button id="eTr"><b>PNG transparent</b><span>Nur Schrift, als Sticker in Notizen</span></button>
 </div>
 <p class="note" id="expMsg" role="status"></p>
+<div id="ready" class="ready" hidden>
+<p class="note">Fertig: <b id="rdName"></b></p>
+<div class="row"><button class="pri" id="rdShare">Datei sichern</button><button id="rdDl">Normal herunterladen</button></div>
+</div>
 <details class="how"><summary>So kommt es in GoodNotes oder Notability</summary>
 <p class="note"><b>GoodNotes (radierbar):</b> Die .goodnotes-Datei landet in „Dateien“ bzw. „Downloads“. In GoodNotes tippst du auf <i>Neu → Importieren</i> und wählst sie aus. Über das Teilen-Menü nimmt GoodNotes sie nicht an. Jeder Buchstabe besteht dann aus echten Kugelschreiber-Strichen: radieren, mit dem Lasso verschieben, umfärben. Beim ersten Export lädt die Seite einmalig etwa 10 MB Programmcode. Das Format ist inoffiziell nachgebaut und kann nach einem GoodNotes-Update brechen.<br><b>PDF:</b> In Notability über <i>Importieren</i> öffnen. In GoodNotes wird ein PDF zur festen Seite, auf der du weiterschreiben, aber die Schrift nicht radieren kannst.<br><b>Transparentes PNG:</b> Als Bild in eine bestehende Notiz einfügen. Es gibt keinen weißen Kasten.</p>
 <p class="note">GoodNotes-Export mit <a href="https://github.com/Taylor-Nilsen/goodnotes-codec">goodnotes-codec</a> (MIT-Lizenz, © 2026 Taylor Nilsen). Nicht mit GoodNotes verbunden.</p>
@@ -318,8 +324,26 @@ function blobSave(name,data){
   const b=data instanceof Blob?data:new Blob([data],{type:'application/octet-stream'}),u=URL.createObjectURL(b),a=document.createElement('a');
   a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),10000);
 }
+/* Eigenständige Seite: Datei vorbereiten, dann mit eigenem Tippen sichern
+   (iPad-Safari blockiert Downloads, die nicht direkt aus einem Tippen kommen) */
+const MIME={pdf:'application/pdf',png:'image/png'};
+function offer(name,data,ok){
+  const type=MIME[name.split('.').pop()]||'application/octet-stream';
+  const blob=data instanceof Blob?data:new Blob([data],{type});
+  const box=$('#ready');box.hidden=false;
+  $('#rdName').textContent=name;em(ok);
+  $('#rdShare').onclick=async()=>{
+    const f=new File([blob],name,{type});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){
+      try{await navigator.share({files:[f]});return}catch(e){if(e&&e.name==='AbortError')return}
+    }
+    blobSave(name,blob);
+  };
+  $('#rdDl').onclick=()=>blobSave(name,blob);
+  box.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
 async function saveFile(name,data,ok){
-  if(!IN_CLAUDE){blobSave(name,data);em(ok);return true}
+  if(!IN_CLAUDE){offer(name,data,ok);return true}
   if(!dl){em('Speichern ist in dieser Ansicht nicht verfügbar. Öffne die Seite über claude.ai im Browser.');return false}
   try{await dl.save({filename:name,data});em(ok);return true}
   catch(e){em(ERR[e&&e.code]||'Speichern hat nicht geklappt.');return false}
@@ -384,8 +408,7 @@ $('#eGn').onclick=async e=>{
     em('Erzeuge GoodNotes-Datei …');
     py.globals.get('build')(JSON.stringify(spec),'/tmp/out.goodnotes');
     const bytes=py.FS.readFile('/tmp/out.goodnotes');
-    blobSave(`Handschrift-${stamp()}.goodnotes`,bytes);
-    em(`GoodNotes-Datei mit ${spec.pages.length} Seite${spec.pages.length>1?'n':''} gespeichert. In GoodNotes: Neu → Importieren.`+(missing?` ${missing} Zeichen fehlten noch und wurden ausgelassen.`:''));
+    offer(`Handschrift-${stamp()}.goodnotes`,bytes,`GoodNotes-Datei mit ${spec.pages.length} Seite${spec.pages.length>1?'n':''} ist fertig. Tippe auf „Datei sichern“ und wähle „In Dateien sichern“. Danach in GoodNotes: Neu → Importieren.`+(missing?` ${missing} Zeichen fehlten noch und wurden ausgelassen.`:''));
   }catch(err){console.error(err);em('Die GoodNotes-Datei konnte nicht erzeugt werden. Prüfe die Internetverbindung und versuche es noch einmal.')}
   finally{btn.disabled=false}
 };
