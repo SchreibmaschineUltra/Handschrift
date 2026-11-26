@@ -104,7 +104,7 @@ select{width:100%;background:var(--bg)}
 <section class="band alt"><div class="wrap cols out">
 <div>
 <h2>2 · Text eingeben</h2>
-<p class="sub">Die Vorschau zeigt die ganze Seite im gewählten Format. Grau = noch nicht geschrieben, dort springt eine Platzhalterschrift ein.</p>
+<p class="sub">Die Vorschau zeigt die ganze Seite im gewählten Format. Die rote gestrichelte Linie ist der rechte Rand, sie erscheint nicht im Export. Grau = noch nicht geschrieben, dort springt eine Platzhalterschrift ein.</p>
 <label for="txt">Dein Text</label>
 <textarea id="txt">Liebe Oma,
 vielen Dank für das schöne Paket! Die Kekse waren nach zwei Tagen schon weg. Ich freue mich riesig auf Weihnachten bei euch.
@@ -121,6 +121,7 @@ Max</textarea>
 <select id="paper"><option value="lined">Liniert</option><option value="grid">Kariert</option><option value="blank">Blanko</option></select>
 <label for="gnSize">Seitenformat</label>
 <select id="gnSize"><option value="a4">A4</option><option value="a3">A3</option><option value="standard">GoodNotes Standard</option></select>
+<label for="sMr">Rechter Rand: <span id="mrVal">15 mm</span></label><input type="range" id="sMr" min="5" max="150" step="5" value="15">
 <div class="row"><button id="bMix">Neu mischen</button></div>
 <h2 style="margin-top:26px">3 · Exportieren</h2>
 <div class="exp">
@@ -222,8 +223,9 @@ function layout(W,S,J,measure){
     for(const word of para.split(/ +/)){
       if(!word)continue;
       const gs=[...word].map(glyph),ww=gs.reduce((s,g)=>s+g.w,0);
-      if(line.length&&x+ww>W){lines.push(line);line=[];x=0}
-      if(line.length){const s=sp*(1+(R()-.5)*J*.6);line.push({sp:s});x+=s}
+      const s=sp*(1+(R()-.5)*J*.6);
+      if(line.length&&x+s+ww>W){lines.push(line);line=[];x=0}
+      if(line.length){line.push({sp:s});x+=s}
       line.push(...gs);x+=ww;
     }
     lines.push(line);
@@ -310,6 +312,10 @@ for(const id of['#txt','#sSize','#sJit','#sGap','#sW','#paper'])$(id).addEventLi
 try{const v=localStorage.getItem('hs-gnsize');if(v)$('#gnSize').value=v}catch(e){}
 $('#gnSize').addEventListener('change',e=>{try{localStorage.setItem('hs-gnsize',e.target.value)}catch(x){}render()});
 $('#bMix').onclick=()=>{seed++;render()};
+const mrShow=()=>{$('#mrVal').textContent=$('#sMr').value+' mm'};
+try{const v=localStorage.getItem('hs-mr');if(v)$('#sMr').value=v}catch(e){}
+mrShow();
+$('#sMr').addEventListener('input',e=>{mrShow();try{localStorage.setItem('hs-mr',e.target.value)}catch(x){}render()});
 
 /* Export */
 const IN_CLAUDE=typeof claude!=='undefined'&&!!claude.use;
@@ -356,7 +362,7 @@ for(const[id,tr]of[['#ePng',false],['#eTr',true]])$(id).onclick=()=>{const c=big
 const K=11/6,MMU=v=>v*72/25.4*K,GNSZ={a4:[MMU(210),MMU(297)],a3:[MMU(297),MMU(420)],standard:[455.04*K,588.45*K]};
 const mctx=document.createElement('canvas').getContext('2d');
 function gnLayout(){
-  const size=$('#gnSize').value,[GW,GH]=GNSZ[size]||GNSZ.a4,o=opts(),ML=80,MR=70;
+  const size=$('#gnSize').value,[GW,GH]=GNSZ[size]||GNSZ.a4,o=opts(),ML=80,MR=Math.min(MMU(+$('#sMr').value),GW-ML-120);
   const S=o.S*.35*K,FS=S*.62,want=S*o.G;let tpl='blank',first=95,step=want,rule=null;
   if(o.paper==='lined'){
     let best=null;
@@ -378,7 +384,7 @@ function gnLayout(){
     for(const g of line)if(!g.v)missing++;
     base+=step;
   }
-  return{size,GW,GH,ML,S,FS,SW:o.SW,tpl,rule,pages,missing};
+  return{size,GW,GH,ML,MR,S,FS,SW:o.SW,tpl,rule,pages,missing};
 }
 function gnPaper(ctx,L){
   const ln=(a,b,c,d)=>{ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.stroke()};
@@ -395,7 +401,10 @@ function render(){
     const y0=i*(PH+GAP);
     oc.save();oc.translate(0,y0);
     oc.fillStyle='#fff';oc.fillRect(0,0,W,PH);oc.strokeStyle='#cfd5e6';oc.lineWidth=1;oc.strokeRect(.5,.5,W-1,PH-1);
-    oc.scale(k,k);gnPaper(oc,L);oc.font=CAV(L.FS);
+    oc.scale(k,k);gnPaper(oc,L);
+    oc.save();oc.strokeStyle='#e5483a';oc.globalAlpha=.55;oc.lineWidth=1.2/k;oc.setLineDash([6/k,5/k]);
+    oc.beginPath();oc.moveTo(L.GW-L.MR,0);oc.lineTo(L.GW-L.MR,L.GH);oc.stroke();oc.restore();
+    oc.font=CAV(L.FS);
     for(const{base,line}of pg)for(const g of line){
       oc.save();oc.translate(L.ML+g.x,base+g.dy);oc.rotate(g.rot);oc.scale(g.sc,g.sc);
       if(g.v){inkStyle(oc,L.S*.022*L.SW,ink);for(const s of g.v)path(oc,s,p=>[(p[0]-g.a)*L.S,(p[1]-BASE)*L.S])}
