@@ -72,6 +72,8 @@ select{width:100%;background:var(--bg)}
 .setform input{flex:1 1 200px;min-height:44px;font:16px Manrope,system-ui,sans-serif;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
 .setinfo{font-size:13px;color:var(--mute)}
 .how{margin-top:12px}
+.exp .quota{font-weight:600;opacity:1;margin-top:2px}
+.exp .quota[hidden]{display:none}
 .hint{font-size:13px;color:var(--mute);margin:2px 0 0;line-height:1.45}
 .ready{margin-top:10px;padding:12px 14px;border:1.5px solid var(--blue);border-radius:12px}
 .ready .note{margin:0}
@@ -148,7 +150,7 @@ Max</textarea>
 <div class="row"><button id="bMix">Neu mischen</button></div>
 <h2 style="margin-top:26px">3 · Exportieren</h2>
 <div class="exp">
-<button class="pri" id="eGn"><b>GoodNotes (radierbar)</b><span>Echte Stiftstriche, radieren und verschieben</span></button>
+<button class="pri" id="eGn"><b>GoodNotes (radierbar)</b><span>Echte Stiftstriche, radieren und verschieben</span><span id="quotaInfo" class="quota" hidden></span></button>
 <button id="ePdf"><b>PDF</b><span>Notability, Drucken, GoodNotes als feste Seite</span></button>
 <button id="ePng"><b>PNG</b><span>Bild mit Papier</span></button>
 <button id="eTr"><b>PNG transparent</b><span>Nur Schrift, als Sticker in Notizen</span></button>
@@ -496,17 +498,46 @@ function loadPy(){
   pyReady.catch(()=>{pyReady=null});
   return pyReady;
 }
+/* Exportkontingent (nur aktiv, wenn die Seite über Cloudflare mit /api/quota läuft) */
+let QUOTA=null;
+const fmtDay=iso=>new Date(iso).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});
+function quotaUI(){
+  const el=$('#quotaInfo');
+  if(!QUOTA||QUOTA.off){el.hidden=true;return}
+  el.hidden=false;
+  if(QUOTA.error)el.textContent='Kontingent wird geprüft …';
+  else if(QUOTA.admin)el.textContent='Admin: unbegrenzt';
+  else el.textContent=QUOTA.remaining>0?`Noch ${QUOTA.remaining} von ${QUOTA.limit} diese Woche`:`Wochenlimit erreicht – wieder ab ${fmtDay(QUOTA.resetsAt)}`;
+}
+async function quotaCall(method){
+  try{
+    const r=await fetch('api/quota',{method,cache:'no-store',credentials:'same-origin'});
+    if(r.status===404||r.status===405){QUOTA={off:true};return QUOTA}
+    const j=await r.json().catch(()=>null);
+    if(!j&&r.ok){QUOTA={off:true};quotaUI();return QUOTA}
+    QUOTA=(r.ok||r.status===429)&&j?j:{error:true};
+    if(r.status===429)QUOTA.limitReached=true;
+  }catch(e){QUOTA={error:true}}
+  quotaUI();return QUOTA;
+}
+if(!IN_CLAUDE)quotaCall('GET');
 $('#eGn').onclick=async e=>{
   if(IN_CLAUDE){em('GoodNotes-Dateien lassen sich in der Claude-Vorschau nicht speichern. Nutze dafür die eigenständige Webseite (die HTML-Datei, die du von Claude bekommen hast).');return}
   const btn=e.currentTarget;btn.disabled=true;
   try{
     const{spec,missing}=gnSpec();
     if(!spec.pages.some(p=>p.length)){em('Schreib zuerst ein paar Buchstaben. Für GoodNotes werden nur deine eigenen Zeichen übertragen.');return}
+    const q=await quotaCall('GET');
+    if(q.error){em('Dein Exportkontingent konnte nicht geprüft werden. Prüfe die Internetverbindung und versuche es noch einmal.');return}
+    if(!q.off&&!q.admin&&q.remaining<=0){em(`Du hast diese Woche alle ${q.limit} GoodNotes-Exporte genutzt. Ab ${fmtDay(q.resetsAt)} geht es wieder. PDF und PNG kannst du weiter nutzen.`);return}
     em(pyReady?'Erzeuge GoodNotes-Datei …':'Lade GoodNotes-Baustein (einmalig ca. 10 MB) …');
     const py=await loadPy();
     em('Erzeuge GoodNotes-Datei …');
     py.globals.get('build')(JSON.stringify(spec),'/tmp/out.goodnotes');
     const bytes=py.FS.readFile('/tmp/out.goodnotes');
+    if(!QUOTA.off&&!QUOTA.admin){const u=await quotaCall('POST');
+      if(u.limitReached){em(`Du hast diese Woche alle ${u.limit} GoodNotes-Exporte genutzt. Ab ${fmtDay(u.resetsAt)} geht es wieder.`);return}
+      if(u.error){em('Dein Exportkontingent konnte nicht verbucht werden. Versuche es noch einmal.');return}}
     offer(`Handschrift-${stamp()}.goodnotes`,bytes,`GoodNotes-Datei mit ${spec.pages.length} Seite${spec.pages.length>1?'n':''} ist fertig. Tippe auf „Datei sichern“ und wähle „In Dateien sichern“. Danach in GoodNotes: Neu → Importieren.`+(missing?` ${missing} Zeichen fehlten noch und wurden ausgelassen.`:''));
   }catch(err){console.error(err);em('Die GoodNotes-Datei konnte nicht erzeugt werden. Prüfe die Internetverbindung und versuche es noch einmal.')}
   finally{btn.disabled=false}
