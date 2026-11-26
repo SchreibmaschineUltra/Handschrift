@@ -45,7 +45,9 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,#pad:focus-visib
 label{display:block;font-weight:600;font-size:14px;margin:14px 0 4px}
 textarea{width:100%;min-height:150px;font:16px/1.5 Manrope,system-ui,sans-serif;padding:12px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);resize:vertical}
 input[type=range]{width:100%;accent-color:var(--blue);height:32px}
-.inks{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.inks{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.ink{display:flex;flex-direction:column;align-items:center;gap:4px}
+.ink small{font-size:13px;color:var(--mute);line-height:1.2}
 .inks button,.inks .pick{position:relative;box-sizing:border-box;flex:none;width:48px;height:48px;min-height:0;margin:0;padding:0;border:3px solid var(--line);border-radius:10px;cursor:pointer;display:block;font-size:0;line-height:0}
 .inks .pick{background:conic-gradient(#e53935,#fdd835,#43a047,#1e88e5,#8e24aa,#e53935)}
 .inks .pick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
@@ -314,11 +316,12 @@ function makePdf(){
   const b=new Uint8Array(f.length);for(let i=0;i<f.length;i++)b[i]=f.charCodeAt(i)&255;
   return{bytes:b,pages:pages.length};
 }
-$('#inks').innerHTML=INKS.map(([c,n])=>`<button data-c="${c}" aria-label="${n}" title="${n}" aria-pressed="false" style="background:${c}"></button>`).join('')
-  +'<label class="pick" title="Eigene Farbe" aria-pressed="false"><input type="color" id="inkPick" value="#2e7d32" aria-label="Eigene Farbe wählen"></label>';
+$('#inks').innerHTML=INKS.map(([c,n])=>`<div class="ink"><button data-c="${c}" aria-label="${n}" aria-pressed="false" style="background:${c}"></button><small>${n}</small></div>`).join('')
+  +'<div class="ink"><label class="pick" aria-pressed="false"><input type="color" id="inkPick" value="#2e7d32" aria-label="Eigene Farbe wählen"></label><small>Eigene</small></div>';
+const sw=()=>$('#inks').querySelectorAll('button,.pick');
 function setInk(c,custom){
   ink=c;
-  for(const x of $('#inks').children)x.setAttribute('aria-pressed',custom?x.classList.contains('pick'):x.dataset.c===c);
+  for(const x of sw())x.setAttribute('aria-pressed',custom?x.classList.contains('pick'):x.dataset.c===c);
   if(custom){$('#inkPick').value=c;$('.pick').style.background=c}
   try{localStorage.setItem('hs-ink',JSON.stringify([c,!!custom]))}catch(e){}
   drawPad();ui();render();
@@ -327,7 +330,7 @@ $('#inks').addEventListener('click',e=>{const b=e.target.closest('button');if(b)
 $('#inkPick').addEventListener('input',e=>setInk(e.target.value,true));
 $('#inkPick').addEventListener('click',()=>setInk($('#inkPick').value,true));
 try{const v=JSON.parse(localStorage.getItem('hs-ink')||'null');if(v&&/^#[0-9a-f]{6}$/i.test(v[0])){ink=v[0];if(v[1]){$('#inkPick').value=v[0];$('.pick').style.background=v[0]}}}catch(e){}
-for(const x of $('#inks').children)x.setAttribute('aria-pressed',x.classList.contains('pick')?$('.pick').style.background!=='':x.dataset.c===ink);
+for(const x of sw())x.setAttribute('aria-pressed',x.classList.contains('pick')?$('.pick').style.background!=='':x.dataset.c===ink);
 const JIT=[[0,'wie gedruckt'],[11,'sehr ordentlich'],[26,'ordentlich'],[41,'natürlich'],[61,'locker'],[81,'sehr lebendig']];
 const valShow=()=>{
   $('#sizeVal').textContent=(+$('#sSize').value*.35*.5*25.4/72).toFixed(1).replace('.',',')+' mm';
