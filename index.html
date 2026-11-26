@@ -45,9 +45,8 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,#pad:focus-visib
 label{display:block;font-weight:600;font-size:14px;margin:14px 0 4px}
 textarea{width:100%;min-height:150px;font:16px/1.5 Manrope,system-ui,sans-serif;padding:12px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);resize:vertical}
 input[type=range]{width:100%;accent-color:var(--blue);height:32px}
-.inks{display:flex;gap:8px;flex-wrap:wrap}
-.inks button,.inks .pick{position:relative;width:64px;height:52px;padding:0;border:3px solid var(--line);border-radius:10px;cursor:pointer;display:flex;align-items:flex-end;justify-content:center}
-.inks span{font:600 11px Manrope,system-ui,sans-serif;color:#fff;margin-bottom:4px;text-shadow:0 1px 2px rgba(0,0,0,.6);pointer-events:none}
+.inks{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.inks button,.inks .pick{position:relative;box-sizing:border-box;flex:none;width:48px;height:48px;min-height:0;margin:0;padding:0;border:3px solid var(--line);border-radius:10px;cursor:pointer;display:block;font-size:0;line-height:0}
 .inks .pick{background:conic-gradient(#e53935,#fdd835,#43a047,#1e88e5,#8e24aa,#e53935)}
 .inks .pick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
 .inks [aria-pressed=true]{border-color:var(--red)}
@@ -315,8 +314,8 @@ function makePdf(){
   const b=new Uint8Array(f.length);for(let i=0;i<f.length;i++)b[i]=f.charCodeAt(i)&255;
   return{bytes:b,pages:pages.length};
 }
-$('#inks').innerHTML=INKS.map(([c,n])=>`<button data-c="${c}" aria-label="${n}" aria-pressed="false" style="background:${c}"><span>${n}</span></button>`).join('')
-  +'<label class="pick" aria-pressed="false"><input type="color" id="inkPick" value="#2e7d32" aria-label="Eigene Farbe wählen"><span>Eigene</span></label>';
+$('#inks').innerHTML=INKS.map(([c,n])=>`<button data-c="${c}" aria-label="${n}" title="${n}" aria-pressed="false" style="background:${c}"></button>`).join('')
+  +'<label class="pick" title="Eigene Farbe" aria-pressed="false"><input type="color" id="inkPick" value="#2e7d32" aria-label="Eigene Farbe wählen"></label>';
 function setInk(c,custom){
   ink=c;
   for(const x of $('#inks').children)x.setAttribute('aria-pressed',custom?x.classList.contains('pick'):x.dataset.c===c);
