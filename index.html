@@ -111,10 +111,8 @@ vielen Dank für das schöne Paket! Die Kekse waren nach zwei Tagen schon weg. I
 
 Viele liebe Grüße
 Max</textarea>
-<label for="sSize">Schriftgröße</label><input type="range" id="sSize" min="40" max="160" value="90">
-<label for="sJit">Unregelmäßigkeit</label><input type="range" id="sJit" min="0" max="100" value="45">
-<label for="sGap">Zeilenabstand</label><input type="range" id="sGap" min="60" max="140" value="85">
-<label for="sW">Strichstärke</label><input type="range" id="sW" min="40" max="220" value="100">
+<label for="sSize">Schriftgröße: <span id="sizeVal"></span></label><input type="range" id="sSize" min="40" max="160" value="90">
+<label for="sJit">Unregelmäßigkeit: <span id="jitVal"></span></label><input type="range" id="sJit" min="0" max="100" value="45">
 <label>Tinte</label>
 <div class="inks" id="inks"></div>
 <label for="paper">Papier</label>
@@ -209,7 +207,7 @@ document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='z'&&
 /* Ausgabe */
 const out=$('#out'),oc=out.getContext('2d'),wrapEl=$('#outWrap');
 function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-const opts=()=>({S:+$('#sSize').value,J:$('#sJit').value/100,G:$('#sGap').value/100,SW:$('#sW').value/100,paper:$('#paper').value});
+const opts=()=>({S:+$('#sSize').value,J:$('#sJit').value/100,G:.85,SW:1,paper:$('#paper').value});
 const CAV=fs=>`500 ${fs}px Caveat, cursive`;
 /* Zeilen setzen: liefert pro Zeile Glyphen mit x-Position und Zufallsabweichung */
 function layout(W,S,J,measure){
@@ -313,7 +311,9 @@ function makePdf(){
 $('#inks').innerHTML=INKS.map(([c,n],i)=>`<button data-c="${c}" aria-label="${n}" aria-pressed="${i===0}" style="background:${c}"></button>`).join('');
 $('#inks').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ink=b.dataset.c;
   for(const x of $('#inks').children)x.setAttribute('aria-pressed',x===b);drawPad();ui();render()});
-for(const id of['#txt','#sSize','#sJit','#sGap','#sW','#paper'])$(id).addEventListener('input',render);
+const valShow=()=>{$('#sizeVal').textContent=$('#sSize').value;$('#jitVal').textContent=$('#sJit').value+' %'};
+valShow();
+for(const id of['#txt','#sSize','#sJit','#paper'])$(id).addEventListener('input',()=>{valShow();render()});
 try{const v=localStorage.getItem('hs-gnsize');if(v)$('#gnSize').value=v}catch(e){}
 $('#gnSize').addEventListener('change',e=>{try{localStorage.setItem('hs-gnsize',e.target.value)}catch(x){}render()});
 $('#bMix').onclick=()=>{seed++;render()};
