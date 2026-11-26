@@ -63,6 +63,14 @@ select{width:100%;background:var(--bg)}
 .exp{display:grid;gap:8px}
 .exp button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:10px 16px;text-align:left;min-height:56px}
 .exp b{font-size:16px}.exp span{font-weight:400;font-size:13px;opacity:.85}
+.setbar{background:var(--card);border-bottom:1.5px solid var(--line);padding:12px max(5vw,16px)}
+.sets{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.sets>label{font-weight:800;font-size:15px;margin:0 4px 0 0}
+.sets select{width:auto;min-width:180px;max-width:100%}
+.setform{display:flex;flex-wrap:wrap;gap:8px;flex-basis:100%}
+.setform[hidden]{display:none}
+.setform input{flex:1 1 200px;min-height:44px;font:16px Manrope,system-ui,sans-serif;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+.setinfo{font-size:13px;color:var(--mute)}
 .how{margin-top:12px}
 .hint{font-size:13px;color:var(--mute);margin:2px 0 0;line-height:1.45}
 .ready{margin-top:10px;padding:12px 14px;border:1.5px solid var(--blue);border-radius:12px}
@@ -73,6 +81,15 @@ select{width:100%;background:var(--bg)}
 <h1>Schreib einmal das Alphabet – dann schreibt die Seite für dich</h1>
 <p>Zeichne jeden Buchstaben ins Feld. Danach erscheint jeder Text, den du eintippst, in deiner eigenen Handschrift.</p>
 </div></header>
+<nav class="setbar" aria-label="Handschrift-Sets"><div class="wrap sets">
+<label for="setSel">Handschrift-Set</label>
+<select id="setSel"></select>
+<button id="setNew">+ Neues Set</button>
+<button id="setRen">Umbenennen</button>
+<button id="setDel">Löschen</button>
+<form id="setForm" class="setform" hidden><input id="setName" maxlength="40" autocomplete="off" placeholder="Name, z. B. Schönschrift"><button class="pri" type="submit" id="setOk">Anlegen</button><button type="button" id="setCancel">Abbrechen</button></form>
+<span id="setInfo" class="setinfo" role="status"></span>
+</div></nav>
 
 <section class="band"><div class="wrap cols">
 <div>
@@ -99,9 +116,9 @@ select{width:100%;background:var(--bg)}
 <div class="grid" id="grid"></div>
 <details>
 <summary>Sichern &amp; übertragen</summary>
-<p class="note">Deine Handschrift wird nur in diesem Browser gespeichert. Kopiere den Code, um sie zu sichern oder auf ein anderes Gerät zu übertragen.</p>
+<p class="note">Deine Handschrift wird nur in diesem Browser gespeichert. Kopiere den Code, um das aktuelle Set zu sichern oder auf ein anderes Gerät zu übertragen. „Laden“ ersetzt den Inhalt des aktuellen Sets.</p>
 <textarea id="json" placeholder="Hier Code einfügen und „Laden“ tippen"></textarea>
-<div class="row"><button id="bCopy">Code kopieren</button><button id="bLoad">Laden</button><button id="bWipe">Alles löschen</button></div>
+<div class="row"><button id="bCopy">Code kopieren</button><button id="bLoad">Laden</button><button id="bWipe">Set leeren</button></div>
 <p class="note" id="jsonMsg" role="status"></p>
 </details>
 </div>
@@ -160,8 +177,18 @@ const CH=[...'abcdefghijklmnopqrstuvwxyzäöüß',...'ABCDEFGHIJKLMNOPQRSTUVWXYZ
 const BASE=.7,LINES=[[.2,0],[.45,0],[.7,1],[.88,0]];
 const INKS=[['#1a1a1a','Schwarz'],['#1d3596','Blau']];
 let G={},cur=0,strokes=[],drawing=null,seed=1,ink=INKS[0][0];
-try{G=JSON.parse(localStorage.getItem('hs-glyphs')||'{}')||{}}catch(e){G={}}
-const save=()=>{try{localStorage.setItem('hs-glyphs',JSON.stringify(G))}catch(e){}};
+/* Handschrift-Sets: mehrere Alphabete, eins ist aktiv; G zeigt auf das aktive */
+let SETS=null;
+try{SETS=JSON.parse(localStorage.getItem('hs-sets')||'null')}catch(e){}
+if(!SETS||!Array.isArray(SETS.list)||!SETS.list.length){
+  let old={};try{old=JSON.parse(localStorage.getItem('hs-glyphs')||'{}')||{}}catch(e){}
+  SETS={active:'s1',list:[{id:'s1',name:'Meine Handschrift',g:old}]};
+}
+const curSet=()=>SETS.list.find(x=>x.id===SETS.active)||SETS.list[0];
+G=curSet().g;SETS.active=curSet().id;
+let saveWarned=false;
+const save=()=>{curSet().g=G;try{localStorage.setItem('hs-sets',JSON.stringify(SETS))}catch(e){
+  if(!saveWarned){saveWarned=true;const el=document.getElementById('setInfo');if(el)el.textContent='Speicher voll: Lösche ein Set oder sichere es über „Sichern & übertragen“.'}}};
 
 function path(ctx,pts,f){
   if(pts.length===1){const[x,y]=f(pts[0]);ctx.beginPath();ctx.arc(x,y,ctx.lineWidth/2,0,7);ctx.fill();return}
@@ -199,7 +226,7 @@ function ui(){
     const b=document.createElement('button');b.textContent='×';b.setAttribute('aria-label','Variante löschen');
     b.onclick=()=>{v.splice(i,1);if(!v.length)delete G[c];save();ui();render()};d.appendChild(b);box.appendChild(d);thumb(cv,g)});
   const n=CH.filter(k=>G[k]&&G[k].length).length;
-  $('#progT').textContent=`${n} von ${CH.length} Zeichen geschrieben`;$('#progB').style.width=(n/CH.length*100)+'%';
+  $('#progT').textContent=`${n} von ${CH.length} Zeichen geschrieben`;if(!saveWarned)$('#setInfo').textContent=`${n} von ${CH.length} Zeichen`;$('#progB').style.width=(n/CH.length*100)+'%';
   $('#grid').innerHTML=CH.map((k,i)=>`<button data-i="${i}" class="${G[k]&&G[k].length?'done':''}${i===cur?' cur':''}" aria-label="Zeichen ${k==='"'?'Anführungszeichen':k}">${k.replace(/&/,'&amp;').replace(/"/,'&quot;')}</button>`).join('');
 }
 $('#grid').addEventListener('click',e=>{const b=e.target.closest('button');if(b){go(+b.dataset.i)}});
@@ -484,12 +511,40 @@ $('#eGn').onclick=async e=>{
 /* Sichern */
 const msg=t=>{$('#jsonMsg').textContent=t};
 $('#bCopy').onclick=async()=>{const s=JSON.stringify(G);$('#json').value=s;try{await navigator.clipboard.writeText(s);msg('Kopiert. Füge den Code irgendwo sicher ein.')}catch(e){msg('Kopieren nicht erlaubt – markiere den Code im Feld oben selbst.')}};
-$('#bLoad').onclick=()=>{try{const o=JSON.parse($('#json').value);if(typeof o!=='object'||!o)throw 0;G=o;save();ui();render();msg('Handschrift geladen.')}catch(e){msg('Der Code ist ungültig.')}};
-let wipe=0;$('#bWipe').onclick=e=>{if(!wipe){wipe=1;e.target.textContent='Wirklich löschen?';setTimeout(()=>{wipe=0;e.target.textContent='Alles löschen'},3000);return}
-  G={};save();wipe=0;e.target.textContent='Alles löschen';go(0);render();msg('Alles gelöscht.')};
+$('#bLoad').onclick=()=>{try{const o=JSON.parse($('#json').value);if(typeof o!=='object'||!o)throw 0;G=o;save();go(0);render();setsUI();msg('In das Set „'+curSet().name+'“ geladen.')}catch(e){msg('Der Code ist ungültig.')}};
+let wipe=0;$('#bWipe').onclick=e=>{if(!wipe){wipe=1;e.target.textContent='Wirklich leeren?';setTimeout(()=>{wipe=0;e.target.textContent='Set leeren'},3000);return}
+  G={};save();wipe=0;e.target.textContent='Set leeren';go(0);render();setsUI();msg('Set geleert.')};
+
+/* Leiste für Handschrift-Sets */
+function setsUI(){
+  const sel=$('#setSel');sel.innerHTML='';
+  for(const x of SETS.list){const o=document.createElement('option');o.value=x.id;o.textContent=x.name;sel.appendChild(o)}
+  sel.value=SETS.active;
+  const n=CH.filter(k=>G[k]&&G[k].length).length;
+  if(!saveWarned)$('#setInfo').textContent=`${n} von ${CH.length} Zeichen`;
+  $('#setDel').disabled=SETS.list.length<2;
+}
+function useSet(id){SETS.active=id;G=curSet().g;save();strokes=[];go(0);render();setsUI()}
+$('#setSel').addEventListener('change',e=>useSet(e.target.value));
+let formMode='';
+function openForm(mode){formMode=mode;const f=$('#setForm');f.hidden=false;
+  $('#setOk').textContent=mode==='new'?'Anlegen':'Speichern';
+  $('#setName').value=mode==='new'?'':curSet().name;$('#setName').focus();$('#setName').select()}
+$('#setNew').onclick=()=>openForm('new');
+$('#setRen').onclick=()=>openForm('ren');
+$('#setCancel').onclick=()=>{$('#setForm').hidden=true};
+$('#setForm').addEventListener('submit',e=>{e.preventDefault();
+  const name=$('#setName').value.trim().slice(0,40)||'Neues Set';
+  if(formMode==='new'){const id='s'+Date.now().toString(36);SETS.list.push({id,name,g:{}});$('#setForm').hidden=true;useSet(id)}
+  else{curSet().name=name;save();$('#setForm').hidden=true;setsUI()}});
+let delArm=0;$('#setDel').onclick=e=>{
+  if(SETS.list.length<2)return;
+  if(!delArm){delArm=1;e.target.textContent=`„${curSet().name}“ wirklich löschen?`;setTimeout(()=>{delArm=0;e.target.textContent='Löschen'},3500);return}
+  delArm=0;e.target.textContent='Löschen';
+  SETS.list=SETS.list.filter(x=>x.id!==SETS.active);useSet(SETS.list[0].id)};
 
 const ro=new ResizeObserver(()=>{sizePad();render()});ro.observe(pad);ro.observe(wrapEl);
-ui();sizePad();render();
+ui();sizePad();render();setsUI();
 if(document.fonts)document.fonts.load('500 40px Caveat').then(render,()=>{});
 }
 </script>
