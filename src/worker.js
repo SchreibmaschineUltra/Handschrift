@@ -101,6 +101,11 @@ export default {
     const out = new Response(res.body, res);
     out.headers.set("cache-control", "no-store");
     out.headers.set("x-robots-tag", "noindex");
+    // Ausweis bei jedem Öffnen der Seite verlängern, damit er nie abläuft
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+      const c = readCookie(request);
+      if (c) out.headers.append("Set-Cookie", cookieHeader(c.token, c.device));
+    }
     return out;
   },
 };
