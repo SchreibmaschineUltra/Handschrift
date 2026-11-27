@@ -12,12 +12,21 @@ const page = (title, text, status) =>
 <meta name="robots" content="noindex"><title>SchreibmaschineUltra</title><style>
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:#1d4d45;font:17px/1.55 system-ui,sans-serif;color:#1a1c1f;padding:20px;box-sizing:border-box}
 main{background:#fff;max-width:460px;padding:32px 28px;box-shadow:0 18px 30px rgba(0,0,0,.3);border-radius:3px;text-align:center}
-h1{font:400 26px/1.2 "Courier New",ui-monospace,monospace;margin:0 0 12px}p{margin:0;color:#3f4a47}
+h1{font:400 26px/1.2 "Courier New",ui-monospace,monospace;margin:0 0 12px}p{margin:0;color:#3f4a47}\nform{margin:22px 0 0}button{font:700 17px system-ui,sans-serif;background:#c8232c;color:#fff;border:0;border-radius:12px;min-height:52px;padding:0 22px;cursor:pointer;width:100%}\nbutton:active{transform:translateY(1px)}.hint{margin-top:16px;font-size:14px;color:#6b7572}
 </style></head><body><main><h1>${title}</h1><p>${text}</p></main></body></html>`,
     { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }
   );
 
 const denied = () => page("Kein Zugang", "Diese Seite ist nur mit einem persönlichen Link nutzbar. Öffne den Link, den du bekommen hast.", 403);
+const activatePage = (name, k) =>
+  page(
+    "Willkommen" + (name ? ", " + esc(name) : ""),
+    `Mit diesem Link bekommst du Zugang zu SchreibmaschineUltra. Er funktioniert nur auf <b>einem</b> Gerät – auf dem, auf dem du jetzt freischaltest.</p>
+<form method="post" action="/?k=${encodeURIComponent(k)}"><button type="submit">Auf diesem Gerät freischalten</button></form>
+<p class="hint">Tipp: Öffne den Link in Safari (nicht im privaten Modus) und nicht in einer Vorschau, damit dein Zugang erhalten bleibt.`,
+    200
+  );
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const usedElsewhere = () =>
   page("Link schon vergeben", "Dieser Link wurde bereits auf einem anderen Gerät aktiviert. Jeder Link gilt nur für ein Gerät. Bitte frag nach einem neuen Link oder lass das Gerät zurücksetzen.", 403);
 
@@ -70,7 +79,7 @@ export default {
       const clean = new URL(url);
       clean.searchParams.delete("k");
       const go = (cookie) =>
-        new Response(null, { status: 302, headers: { Location: clean.pathname + clean.search, "Set-Cookie": cookie, "cache-control": "no-store" } });
+        new Response(null, { status: 303, headers: { Location: clean.pathname + clean.search, "Set-Cookie": cookie, "cache-control": "no-store" } });
       if (isOwner(env, k)) {
         const c = readCookie(request);
         return go(cookieHeader(k, c && c.token === k ? c.device : rand()));
@@ -83,6 +92,10 @@ export default {
         if (c && c.token === k && c.device === l.device) return go(cookieHeader(k, l.device));
         return usedElsewhere();
       }
+      // Noch nicht freigeschaltet: erst nach Tipp auf den Knopf (POST) binden.
+      // Link-Vorschauen von WhatsApp, iMessage & Co. rufen nur GET auf und
+      // verbrauchen den Link deshalb nicht.
+      if (request.method !== "POST") return activatePage(l.name, k);
       const device = rand();
       l.device = device;
       l.activated = new Date().toISOString();
