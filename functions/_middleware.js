@@ -23,6 +23,9 @@ export async function onRequest(context) {
   const { request, env, next } = context;
   if (!env.DB) return page("Noch nicht eingerichtet", "Der Speicher fehlt (KV-Binding „DB“).", 500);
   const url = new URL(request.url);
+  // Suchmaschinen draußen halten
+  if (url.pathname === "/robots.txt")
+    return new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain" } });
   const k = url.searchParams.get("k");
 
   if (k) {
