@@ -21,10 +21,37 @@ const denied = () => page("Kein Zugang", "Diese Seite ist nur mit einem persönl
 const usedElsewhere = () =>
   page("Link schon vergeben", "Dieser Link wurde bereits auf einem anderen Gerät aktiviert. Jeder Link gilt nur für ein Gerät. Bitte frag nach einem neuen Link oder lass das Gerät zurücksetzen.", 403);
 
+// Letzter Besuch pro Link: sparsam speichern (höchstens alle 30 Minuten oder bei neuer IP)
+const SEEN_EVERY = 30 * 60 * 1000;
+function visitInfo(request) {
+  const ua = request.headers.get("User-Agent") || "";
+  const dev = /iPad/.test(ua) || (/Macintosh/.test(ua) && /Mobile/.test(ua)) ? "iPad" : /iPhone/.test(ua) ? "iPhone"
+    : /Android/.test(ua) ? (/Mobile/.test(ua) ? "Android-Handy" : "Android-Tablet") : /Macintosh|Mac OS X/.test(ua) ? "Mac/iPad"
+    : /Windows/.test(ua) ? "Windows-PC" : /Linux|CrOS/.test(ua) ? "Linux/Chromebook" : "Unbekannt";
+  const br = /Edg\//.test(ua) ? "Edge" : /Firefox|FxiOS/.test(ua) ? "Firefox" : /OPR\//.test(ua) ? "Opera" : /Chrome|CriOS/.test(ua) ? "Chrome" : /Safari/.test(ua) ? "Safari" : "";
+  return {
+    at: new Date().toISOString(),
+    ip: request.headers.get("CF-Connecting-IP") || "",
+    country: (request.cf && request.cf.country) || "",
+    city: (request.cf && request.cf.city) || "",
+    device: br ? `${dev} · ${br}` : dev,
+  };
+}
+async function trackSeen(env, token, request, force = false) {
+  const info = visitInfo(request);
+  if (!force) {
+    const prev = await env.DB.get("seen:" + token, { type: "json" });
+    if (prev && prev.ip === info.ip && Date.now() - Date.parse(prev.at) < SEEN_EVERY) return;
+  }
+  await env.DB.put("seen:" + token, JSON.stringify(info));
+}
+
 async function apiLinks(request, env, who) {
   if (!who.owner) return json({ error: "forbidden" }, 403);
   const origin = new URL(request.url).origin;
   const links = await loadLinks(env);
+  const seen = {};
+  await Promise.all(Object.keys(links).map(async (t) => { seen[t] = await env.DB.get("seen:" + t, { type: "json" }); }));
   const list = () => ({
     max: MAX_LINKS,
     links: Object.entries(links)
@@ -32,6 +59,7 @@ async function apiLinks(request, env, who) {
         token, name: l.name, created: l.created, activated: l.activated || null,
         status: l.blocked ? "gesperrt" : l.device ? "aktiv" : "offen",
         url: `${origin}/?k=${token}`,
+        seen: seen[token] || null,
       }))
       .sort((a, b) => a.created.localeCompare(b.created)),
   });
@@ -49,7 +77,7 @@ async function apiLinks(request, env, who) {
     case "reset": if (!l) return json({ error: "unknown" }, 404); l.device = null; l.activated = null; break;
     case "block": if (!l) return json({ error: "unknown" }, 404); l.blocked = true; break;
     case "unblock": if (!l) return json({ error: "unknown" }, 404); l.blocked = false; break;
-    case "delete": if (!l) return json({ error: "unknown" }, 404); delete links[b.token]; break;
+    case "delete": if (!l) return json({ error: "unknown" }, 404); delete links[b.token]; delete seen[b.token]; await env.DB.delete("seen:" + b.token); break;
     default: return json({ error: "action" }, 400);
   }
   await saveLinks(env, links);
@@ -57,7 +85,7 @@ async function apiLinks(request, env, who) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === "/robots.txt")
       return new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain" } });
@@ -85,6 +113,7 @@ export default {
       l.device = device;
       l.activated = new Date().toISOString();
       await saveLinks(env, links);
+      await trackSeen(env, k, request, true);
       return go(cookieHeader(k, device));
     }
 
@@ -95,6 +124,11 @@ export default {
     // Verwaltung nur für den Besitzer
     if (/^\/admin(\.html)?\/?$/.test(url.pathname) && !who.owner) return denied();
 
+    // Besuch merken (nur Freunde, nur beim Öffnen der Seite)
+    if (!who.owner && request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+      const t = trackSeen(env, who.token, request).catch(() => {});
+      if (ctx && ctx.waitUntil) ctx.waitUntil(t); else await t;
+    }
     const res = await env.ASSETS.fetch(request);
     const out = new Response(res.body, res);
     out.headers.set("cache-control", "no-store");
