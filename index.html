@@ -33,12 +33,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Figtree,syste
 /* Set-Leiste */
 .setbar{background:var(--card);border-bottom:1.5px solid var(--line);padding:14px max(5vw,16px)}
 .sets{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px}
-.sets>label{font:400 17px "Special Elite",ui-serif,serif;margin:0 6px 0 0}
+.sets>label[for=setSel]{font:400 17px "Special Elite",ui-serif,serif;margin:0 6px 0 0}
 .sets select{width:auto;min-width:200px;max-width:100%}
 .setform{display:flex;flex-wrap:wrap;gap:8px;flex-basis:100%;justify-content:center}
 .setform[hidden]{display:none}
 .setform input{flex:0 1 360px;min-height:44px;font:16px Figtree,system-ui,sans-serif;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
 .setinfo{font-size:13px;color:var(--mute);flex-basis:100%;text-align:center}
+.btnlike{position:relative;display:inline-flex;align-items:center;margin:0;font:600 15px Figtree,system-ui,sans-serif;min-height:44px;padding:0 16px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.btnlike input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.btnlike:focus-within{outline:3px solid var(--ribbon);outline-offset:2px}
 
 h2{font:400 26px/1.15 "Special Elite",ui-serif,serif;margin:0 0 6px}
 .sub{color:var(--mute);margin:0 0 16px;font-size:15px}
@@ -128,6 +131,8 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 <button id="setNew">+ Neues Set</button>
 <button id="setRen">Umbenennen</button>
 <button id="setDel">Löschen</button>
+<button id="setDl">Herunterladen</button>
+<label class="btnlike" id="setAddLbl"><input type="file" id="setFile" accept=".json,application/json,text/plain">Hinzufügen</label>
 <form id="setForm" class="setform" hidden><input id="setName" maxlength="40" autocomplete="off" placeholder="Name, z. B. Schönschrift"><button class="pri" type="submit" id="setOk">Anlegen</button><button type="button" id="setCancel">Abbrechen</button></form>
 <span id="setInfo" class="setinfo" role="status"></span>
 </div></nav>
@@ -155,13 +160,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 <p class="sub" id="progT"></p>
 <div class="prog"><i id="progB"></i></div>
 <div class="grid" id="grid"></div>
-<details>
-<summary>Sichern &amp; übertragen</summary>
-<p class="note">Deine Handschrift wird nur in diesem Browser gespeichert. Kopiere den Code, um das aktuelle Set zu sichern oder auf ein anderes Gerät zu übertragen. „Laden“ ersetzt den Inhalt des aktuellen Sets.</p>
-<textarea id="json" placeholder="Hier Code einfügen und „Laden“ tippen"></textarea>
-<div class="row"><button id="bCopy">Code kopieren</button><button id="bLoad">Laden</button><button id="bWipe">Set leeren</button></div>
-<p class="note" id="jsonMsg" role="status"></p>
-</details>
+
 </div>
 </div></section>
 
@@ -233,7 +232,7 @@ const curSet=()=>SETS.list.find(x=>x.id===SETS.active)||SETS.list[0];
 G=curSet().g;SETS.active=curSet().id;
 let saveWarned=false;
 const save=()=>{curSet().g=G;try{localStorage.setItem('hs-sets',JSON.stringify(SETS))}catch(e){
-  if(!saveWarned){saveWarned=true;const el=document.getElementById('setInfo');if(el)el.textContent='Speicher voll: Lösche ein Set oder sichere es über „Sichern & übertragen“.'}}};
+  if(!saveWarned){saveWarned=true;const el=document.getElementById('setInfo');if(el)el.textContent='Speicher voll: Lade ein Set herunter und lösche es dann hier.'}}};
 
 function path(ctx,pts,f){
   if(pts.length===1){const[x,y]=f(pts[0]);ctx.beginPath();ctx.arc(x,y,ctx.lineWidth/2,0,7);ctx.fill();return}
@@ -583,12 +582,34 @@ $('#eGn').onclick=async e=>{
   finally{btn.disabled=false}
 };
 
-/* Sichern */
-const msg=t=>{$('#jsonMsg').textContent=t};
-$('#bCopy').onclick=async()=>{const s=JSON.stringify(G);$('#json').value=s;try{await navigator.clipboard.writeText(s);msg('Kopiert. Füge den Code irgendwo sicher ein.')}catch(e){msg('Kopieren nicht erlaubt – markiere den Code im Feld oben selbst.')}};
-$('#bLoad').onclick=()=>{try{const o=JSON.parse($('#json').value);if(typeof o!=='object'||!o)throw 0;G=o;save();go(0);render();setsUI();msg('In das Set „'+curSet().name+'“ geladen.')}catch(e){msg('Der Code ist ungültig.')}};
-let wipe=0;$('#bWipe').onclick=e=>{if(!wipe){wipe=1;e.target.textContent='Wirklich leeren?';setTimeout(()=>{wipe=0;e.target.textContent='Set leeren'},3000);return}
-  G={};save();wipe=0;e.target.textContent='Set leeren';go(0);render();setsUI();msg('Set geleert.')};
+/* Set als Datei sichern und wieder hinzufügen */
+const setMsg=t=>{$('#setInfo').textContent=t};
+$('#setDl').onclick=async()=>{
+  const set=curSet(),n=CH.filter(k=>G[k]&&G[k].length).length;
+  if(!n){setMsg('Dieses Set ist noch leer. Schreib zuerst ein paar Buchstaben.');return}
+  const name=('Handschrift-'+set.name).replace(/[\\/:*?"<>|]+/g,'-').slice(0,60)+'.json';
+  const body=JSON.stringify({app:'SchreibmaschineUltra',version:1,name:set.name,glyphs:G});
+  if(IN_CLAUDE){saveFile(name,body,`Set „${set.name}“ gesichert.`).then(ok=>{if(ok)setMsg(`Set „${set.name}“ gesichert.`)});return}
+  const f=new File([body],name,{type:'application/json'});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){
+    try{await navigator.share({files:[f]});setMsg(`Set „${set.name}“ gesichert.`);return}catch(e){if(e&&e.name==='AbortError')return}
+  }
+  blobSave(name,f);setMsg(`Set „${set.name}“ wurde heruntergeladen.`);
+};
+$('#setFile').addEventListener('change',async e=>{
+  const file=e.target.files&&e.target.files[0];e.target.value='';
+  if(!file)return;
+  try{
+    const o=JSON.parse(await file.text());
+    const glyphs=o&&o.app==='SchreibmaschineUltra'?o.glyphs:o;
+    const ok=glyphs&&typeof glyphs==='object'&&!Array.isArray(glyphs)&&Object.values(glyphs).every(v=>Array.isArray(v));
+    if(!ok)throw 0;
+    let name=String((o&&o.name)||file.name.replace(/\.json$/i,'').replace(/^Handschrift-/,'')||'Neues Set').slice(0,40);
+    const taken=new Set(SETS.list.map(x=>x.name));let k=2,base=name;while(taken.has(name))name=`${base} (${k++})`;
+    const id='s'+Date.now().toString(36);SETS.list.push({id,name,g:glyphs});useSet(id);
+    setMsg(`Set „${name}“ hinzugefügt.`);
+  }catch(err){setMsg('Diese Datei ist kein Handschrift-Set. Wähle eine Datei, die du hier heruntergeladen hast.')}
+});
 
 /* Leiste für Handschrift-Sets */
 function setsUI(){
@@ -597,7 +618,6 @@ function setsUI(){
   sel.value=SETS.active;
   const n=CH.filter(k=>G[k]&&G[k].length).length;
   if(!saveWarned)$('#setInfo').textContent=`${n} von ${CH.length} Zeichen`;
-  $('#setDel').disabled=SETS.list.length<2;
 }
 function useSet(id){SETS.active=id;G=curSet().g;save();strokes=[];go(0);render();setsUI()}
 $('#setSel').addEventListener('change',e=>useSet(e.target.value));
@@ -613,10 +633,11 @@ $('#setForm').addEventListener('submit',e=>{e.preventDefault();
   if(formMode==='new'){const id='s'+Date.now().toString(36);SETS.list.push({id,name,g:{}});$('#setForm').hidden=true;useSet(id)}
   else{curSet().name=name;save();$('#setForm').hidden=true;setsUI()}});
 let delArm=0;$('#setDel').onclick=e=>{
-  if(SETS.list.length<2)return;
   if(!delArm){delArm=1;e.target.textContent=`„${curSet().name}“ wirklich löschen?`;setTimeout(()=>{delArm=0;e.target.textContent='Löschen'},3500);return}
   delArm=0;e.target.textContent='Löschen';
-  SETS.list=SETS.list.filter(x=>x.id!==SETS.active);useSet(SETS.list[0].id)};
+  SETS.list=SETS.list.filter(x=>x.id!==SETS.active);
+  if(!SETS.list.length)SETS.list.push({id:'s'+Date.now().toString(36),name:'Meine Handschrift',g:{}});
+  useSet(SETS.list[0].id)};
 
 const ro=new ResizeObserver(()=>{sizePad();render()});ro.observe(pad);ro.observe(wrapEl);
 ui();sizePad();render();setsUI();
