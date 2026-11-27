@@ -1,0 +1,12 @@
+# Einstellungen für Cloudflare Pages (Projektname muss "schreibmaschineultra" sein)
+name = "schreibmaschineultra"
+pages_build_output_dir = "."
+compatibility_date = "2026-11-01"
+
+# Speicher für die persönlichen Links
+[[kv_namespaces]]
+binding = "DB"
+id = "acbef1b612c1417eb8ca07e222b76936"
+
+# Der geheime Besitzer-Schlüssel OWNER_TOKEN wird NICHT hier eingetragen,
+# sondern im Cloudflare-Dashboard unter Einstellungen → Variablen und Geheimnisse.
