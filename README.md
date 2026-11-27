@@ -11,13 +11,14 @@ Alles läuft im Browser, die Handschrift bleibt auf dem eigenen Gerät.
 
 Der GoodNotes-Export nutzt [goodnotes-codec](https://github.com/Taylor-Nilsen/goodnotes-codec) (MIT-Lizenz, siehe `THIRD_PARTY_LICENSE-goodnotes-codec.txt`). Das Format ist inoffiziell nachgebaut; dieses Projekt ist nicht mit GoodNotes verbunden.
 
-## Exportkontingent (Cloudflare)
+## Zugang nur mit persönlichem Link (Cloudflare Pages)
 
-Läuft die Seite über Cloudflare Pages mit Cloudflare Access, begrenzt `functions/api/quota.js` die GoodNotes-Exporte pro Person und Woche (Montag bis Sonntag). PDF und PNG sind frei.
+Läuft die Seite über Cloudflare Pages, lässt `functions/_middleware.js` nur Besucher mit persönlichem Link herein:
+
+- Jeder Freundes-Link (`/?k=…`) wird beim ersten Öffnen an dieses Gerät gebunden; auf anderen Geräten erscheint „Link schon vergeben“.
+- Höchstens 15 Freundes-Links.
+- Der Besitzer-Link (`/?k=` + `OWNER_TOKEN`) funktioniert auf allen Geräten und zeigt den Bereich „Freunde verwalten“: Link erstellen, kopieren, Gerät zurücksetzen, sperren, löschen.
 
 Einstellungen im Pages-Projekt:
-- KV-Namespace als Binding `QUOTA`
-- Variable `ADMINS`: E-Mail-Adressen ohne Limit, durch Komma getrennt
-- Variable `LIMIT`: Exporte pro Woche (Standard 10)
-
-Ohne `/api/quota` (z. B. auf GitHub Pages) gibt es kein Limit.
+- KV-Namespace als Binding `DB`
+- Geheime Variable `OWNER_TOKEN`: langer Zufallswert, nur dem Besitzer bekannt

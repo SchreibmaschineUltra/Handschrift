@@ -107,9 +107,20 @@ button.key.red{background:radial-gradient(circle at 50% 35%,#e24a52,var(--ribbon
 button.key small{display:inline-flex;align-items:center;gap:3px;font:700 11px Figtree,system-ui,sans-serif;opacity:.8}
 button.key b{font-weight:400}
 button.key:disabled{opacity:.55}
-.quota{margin:12px 0 0;text-align:center;font-weight:700;color:#fff}
-.quota[hidden]{display:none}
 
+.admin{background:var(--bg)}
+.admadd{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.admadd input{flex:1 1 220px;min-height:44px;font:16px Figtree,system-ui,sans-serif;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)}
+.admlist{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}
+.admlist li{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px}
+.admlist .who{flex:1 1 180px;display:flex;flex-direction:column}
+.admlist .who b{font:400 20px/1.2 "Special Elite",ui-serif,serif}
+.admlist .who small{color:var(--mute);font-size:13px}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-left:6px;vertical-align:2px;font-family:Figtree,system-ui,sans-serif}
+.badge.offen{background:#fff3c4;color:#6b5200}.badge.aktiv{background:#d8efe4;color:#1d4d45}.badge.gesperrt{background:#f7d4d6;color:#9e1a22}
+.admlist .acts{display:flex;flex-wrap:wrap;gap:6px}
+.admlist .acts button{min-height:40px;padding:0 12px;font-size:14px}
+.admlist input.url{flex-basis:100%;min-height:40px;font:14px Figtree,system-ui,sans-serif;padding:0 10px;border-radius:8px;border:1.5px dashed var(--line);background:var(--bg);color:var(--ink)}
 #outWrap{background:transparent}
 #out{display:block;width:100%;filter:drop-shadow(0 14px 22px rgba(0,0,0,.35))}
 .note{font-size:13px;color:var(--mute);margin-top:8px}
@@ -201,13 +212,20 @@ Max</textarea>
 <button class="key" id="ePng"><b>PNG</b><small><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M3 13h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Download</small></button>
 <button class="key" id="eTr"><b>PNG<br>transparent</b><small><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M3 13h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Download</small></button>
 </div>
-<p id="quotaInfo" class="quota" hidden></p>
 <p class="note credit">GoodNotes-Export mit <a href="https://github.com/Taylor-Nilsen/goodnotes-codec">goodnotes-codec</a> (MIT-Lizenz, © 2026 Taylor Nilsen). Nicht mit GoodNotes verbunden.</p>
 <p class="note" id="expMsg" role="status"></p>
 <div id="ready" class="ready" hidden>
 <p class="note">Fertig: <b id="rdName"></b></p>
 <div class="row"><button class="pri" id="rdShare">Datei sichern</button><button id="rdDl">Normal herunterladen</button></div>
 </div>
+</div></section>
+
+<section class="band admin" id="admin" hidden><div class="wrap">
+<h2>Freunde verwalten</h2>
+<p class="sub">Nur du siehst diesen Bereich. Jeder Link funktioniert auf genau einem Gerät, nämlich auf dem, wo er zuerst geöffnet wird. <span id="admCount"></span></p>
+<form id="admAdd" class="admadd"><input id="admName" maxlength="40" autocomplete="off" placeholder="Name, z. B. Lena" aria-label="Name des Freundes"><button class="pri" type="submit">Link erstellen</button></form>
+<p class="note" id="admMsg" role="status"></p>
+<ul class="admlist" id="admList"></ul>
 </div></section>
 
 <script>
@@ -537,46 +555,17 @@ function loadPy(){
   pyReady.catch(()=>{pyReady=null});
   return pyReady;
 }
-/* Exportkontingent (nur aktiv, wenn die Seite über Cloudflare mit /api/quota läuft) */
-let QUOTA=null;
-const fmtDay=iso=>new Date(iso).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});
-function quotaUI(){
-  const el=$('#quotaInfo');
-  if(!QUOTA||QUOTA.off){el.hidden=true;return}
-  el.hidden=false;
-  if(QUOTA.error)el.textContent='Kontingent wird geprüft …';
-  else if(QUOTA.admin)el.textContent='Admin: unbegrenzt';
-  else el.textContent=QUOTA.remaining>0?`Noch ${QUOTA.remaining} von ${QUOTA.limit} diese Woche`:`Wochenlimit erreicht – wieder ab ${fmtDay(QUOTA.resetsAt)}`;
-}
-async function quotaCall(method){
-  try{
-    const r=await fetch('api/quota',{method,cache:'no-store',credentials:'same-origin'});
-    if(r.status===404||r.status===405){QUOTA={off:true};return QUOTA}
-    const j=await r.json().catch(()=>null);
-    if(!j&&r.ok){QUOTA={off:true};quotaUI();return QUOTA}
-    QUOTA=(r.ok||r.status===429)&&j?j:{error:true};
-    if(r.status===429)QUOTA.limitReached=true;
-  }catch(e){QUOTA={error:true}}
-  quotaUI();return QUOTA;
-}
-if(!IN_CLAUDE)quotaCall('GET');
 $('#eGn').onclick=async e=>{
   if(IN_CLAUDE){em('GoodNotes-Dateien lassen sich in der Claude-Vorschau nicht speichern. Nutze dafür die eigenständige Webseite (die HTML-Datei, die du von Claude bekommen hast).');return}
   const btn=e.currentTarget;btn.disabled=true;
   try{
     const{spec,missing}=gnSpec();
     if(!spec.pages.some(p=>p.length)){em('Schreib zuerst ein paar Buchstaben. Für GoodNotes werden nur deine eigenen Zeichen übertragen.');return}
-    const q=await quotaCall('GET');
-    if(q.error){em('Dein Exportkontingent konnte nicht geprüft werden. Prüfe die Internetverbindung und versuche es noch einmal.');return}
-    if(!q.off&&!q.admin&&q.remaining<=0){em(`Du hast diese Woche alle ${q.limit} GoodNotes-Exporte genutzt. Ab ${fmtDay(q.resetsAt)} geht es wieder. PDF und PNG kannst du weiter nutzen.`);return}
     em(pyReady?'Erzeuge GoodNotes-Datei …':'Lade GoodNotes-Baustein (einmalig ca. 10 MB) …');
     const py=await loadPy();
     em('Erzeuge GoodNotes-Datei …');
     py.globals.get('build')(JSON.stringify(spec),'/tmp/out.goodnotes');
     const bytes=py.FS.readFile('/tmp/out.goodnotes');
-    if(!QUOTA.off&&!QUOTA.admin){const u=await quotaCall('POST');
-      if(u.limitReached){em(`Du hast diese Woche alle ${u.limit} GoodNotes-Exporte genutzt. Ab ${fmtDay(u.resetsAt)} geht es wieder.`);return}
-      if(u.error){em('Dein Exportkontingent konnte nicht verbucht werden. Versuche es noch einmal.');return}}
     offer(`Handschrift-${stamp()}.goodnotes`,bytes,`GoodNotes-Datei mit ${spec.pages.length} Seite${spec.pages.length>1?'n':''} ist fertig. Tippe auf „Datei sichern“ und wähle „In Dateien sichern“. Danach in GoodNotes: Neu → Importieren.`+(missing?` ${missing} Zeichen fehlten noch und wurden ausgelassen.`:''));
   }catch(err){console.error(err);em('Die GoodNotes-Datei konnte nicht erzeugt werden. Prüfe die Internetverbindung und versuche es noch einmal.')}
   finally{btn.disabled=false}
@@ -610,6 +599,56 @@ $('#setFile').addEventListener('change',async e=>{
     setMsg(`Set „${name}“ hinzugefügt.`);
   }catch(err){setMsg('Diese Datei ist kein Handschrift-Set. Wähle eine Datei, die du hier heruntergeladen hast.')}
 });
+
+
+/* Verwaltung der persönlichen Links (nur mit Besitzer-Link sichtbar) */
+let ADM=null;
+const admMsg=t=>{$('#admMsg').textContent=t};
+const fmtDate=iso=>iso?new Date(iso).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}):'';
+async function admApi(body){
+  const r=await fetch('/api/links',body?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),cache:'no-store'}:{cache:'no-store'});
+  const j=await r.json().catch(()=>null);
+  if(j&&j.links)ADM=j;
+  if(!r.ok)throw Object.assign(new Error('api'),{code:j&&j.error});
+  return j;
+}
+function admRender(){
+  if(!ADM)return;
+  $('#admCount').textContent=`${ADM.links.length} von ${ADM.max} Links vergeben.`;
+  const full=ADM.links.length>=ADM.max;
+  $('#admName').disabled=full;$('#admAdd').querySelector('button').disabled=full;
+  if(full)$('#admName').placeholder='Alle Links vergeben. Lösche einen, um Platz zu machen.';
+  const ul=$('#admList');ul.innerHTML='';
+  if(!ADM.links.length){const li=document.createElement('li');li.innerHTML='<span class="who"><small>Noch keine Links. Erstelle oben den ersten.</small></span>';ul.appendChild(li);return}
+  for(const l of ADM.links){
+    const li=document.createElement('li');
+    li.innerHTML=`<span class="who"><b>${ESC(l.name)}<span class="badge ${l.status}">${l.status}</span></b><small>${l.status==='offen'?'Noch nicht geöffnet · erstellt '+fmtDate(l.created):l.activated?'Aktiviert am '+fmtDate(l.activated):''}</small></span><span class="acts"></span>`;
+    const acts=li.querySelector('.acts');
+    const btn=(label,fn,cls)=>{const b=document.createElement('button');b.type='button';b.textContent=label;if(cls)b.className=cls;b.onclick=()=>fn(b);acts.appendChild(b);return b};
+    if(l.status==='offen')btn('Link kopieren',async()=>{
+      try{await navigator.clipboard.writeText(l.url);admMsg(`Link für ${l.name} kopiert. Schick ihn per Nachricht.`)}
+      catch(e){let i=li.querySelector('input.url');if(!i){i=document.createElement('input');i.className='url';i.readOnly=true;i.value=l.url;li.appendChild(i)}i.focus();i.select();admMsg('Kopieren nicht erlaubt: Der Link ist markiert, kopiere ihn von Hand.')}
+    },'pri');
+    if(l.status==='aktiv')btn('Gerät zurücksetzen',()=>act({action:'reset',token:l.token},`${l.name}: Gerät zurückgesetzt. Der Link funktioniert jetzt auf dem nächsten Gerät, das ihn öffnet.`));
+    if(l.status==='gesperrt')btn('Entsperren',()=>act({action:'unblock',token:l.token},`${l.name} ist entsperrt.`));
+    else btn('Sperren',()=>act({action:'block',token:l.token},`${l.name} ist gesperrt.`));
+    let armed=0;btn('Löschen',b=>{if(!armed){armed=1;b.textContent='Wirklich löschen?';setTimeout(()=>{armed=0;b.textContent='Löschen'},3500);return}
+      act({action:'delete',token:l.token},`Link von ${l.name} gelöscht.`)});
+    ul.appendChild(li);
+  }
+}
+async function act(body,ok){
+  try{await admApi(body);admRender();admMsg(ok)}
+  catch(e){admMsg(e.code==='max'?`Es sind schon ${ADM.max} Links vergeben.`:'Das hat nicht geklappt. Lade die Seite neu und versuche es noch einmal.')}
+}
+$('#admAdd').addEventListener('submit',async e=>{e.preventDefault();
+  const name=$('#admName').value.trim();if(!name){admMsg('Gib zuerst einen Namen ein.');return}
+  await act({action:'create',name},`Link für ${name} erstellt. Tippe bei ${name} auf „Link kopieren“.`);$('#admName').value='';});
+if(!IN_CLAUDE)fetch('/api/me',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(async me=>{
+  if(!me||!me.owner)return;
+  $('#admin').hidden=false;
+  try{await admApi();admRender()}catch(e){admMsg('Die Liste konnte nicht geladen werden.')}
+}).catch(()=>{});
 
 /* Leiste für Handschrift-Sets */
 function setsUI(){
