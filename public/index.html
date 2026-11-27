@@ -20,6 +20,12 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Figtree,syste
 
 /* Kopf: Walze + Papierbogen */
 .machine{background:radial-gradient(120% 90% at 50% 0%,#2a6a5f 0%,var(--enamel) 55%,var(--enamel-2) 100%);padding:22px max(4vw,12px) 0;overflow:hidden}
+.machine{position:relative}
+.admbar{display:flex;justify-content:flex-end;max-width:1180px;margin:-8px auto 10px}
+.admbar:has(a[hidden]){display:none}
+.adminlink{color:#fff;font:700 14px Figtree,system-ui,sans-serif;text-decoration:none;border:1.5px solid rgba(255,255,255,.55);border-radius:10px;padding:8px 12px;background:rgba(0,0,0,.15)}
+.adminlink[hidden]{display:none}
+.adminlink:hover{background:rgba(255,255,255,.12)}
 .platen{position:relative;z-index:2;display:flex;align-items:center;max-width:860px;margin:0 auto;height:34px}
 .platen .roll{flex:1;height:30px;border-radius:15px;background:linear-gradient(#5b6066 0%,#2b2f34 35%,#16181b 70%,#3a3f45 100%);box-shadow:0 6px 10px rgba(0,0,0,.35)}
 .platen .knob{width:30px;height:34px;border-radius:10px;background:linear-gradient(#e4e7e3,#9aa09a 60%,#d7dbd6);box-shadow:inset 0 0 0 2px rgba(0,0,0,.12)}
@@ -108,19 +114,6 @@ button.key small{display:inline-flex;align-items:center;gap:3px;font:700 11px Fi
 button.key b{font-weight:400}
 button.key:disabled{opacity:.55}
 
-.admin{background:var(--bg)}
-.admadd{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
-.admadd input{flex:1 1 220px;min-height:44px;font:16px Figtree,system-ui,sans-serif;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)}
-.admlist{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}
-.admlist li{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px}
-.admlist .who{flex:1 1 180px;display:flex;flex-direction:column}
-.admlist .who b{font:400 20px/1.2 "Special Elite",ui-serif,serif}
-.admlist .who small{color:var(--mute);font-size:13px}
-.badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin-left:6px;vertical-align:2px;font-family:Figtree,system-ui,sans-serif}
-.badge.offen{background:#fff3c4;color:#6b5200}.badge.aktiv{background:#d8efe4;color:#1d4d45}.badge.gesperrt{background:#f7d4d6;color:#9e1a22}
-.admlist .acts{display:flex;flex-wrap:wrap;gap:6px}
-.admlist .acts button{min-height:40px;padding:0 12px;font-size:14px}
-.admlist input.url{flex-basis:100%;min-height:40px;font:14px Figtree,system-ui,sans-serif;padding:0 10px;border-radius:8px;border:1.5px dashed var(--line);background:var(--bg);color:var(--ink)}
 #outWrap{background:transparent}
 #out{display:block;width:100%;filter:drop-shadow(0 14px 22px rgba(0,0,0,.35))}
 .note{font-size:13px;color:var(--mute);margin-top:8px}
@@ -133,6 +126,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 @media(prefers-reduced-motion:reduce){.prog i{transition:none}.sheet h1 .c{animation:none;opacity:1}.sheet h1 .caret{animation:none}button.key,.grid button{transition:none}}
 </style></head><body>
 <header class="machine">
+<div class="admbar"><a id="adminLink" class="adminlink" href="/admin" hidden>Verwaltung</a></div>
 <div class="platen" aria-hidden="true"><i class="knob"></i><i class="roll"></i><i class="knob"></i></div>
 <div class="sheet"><h1 id="title">SchreibmaschineUltra</h1></div>
 </header>
@@ -220,13 +214,7 @@ Max</textarea>
 </div>
 </div></section>
 
-<section class="band admin" id="admin" hidden><div class="wrap">
-<h2>Freunde verwalten</h2>
-<p class="sub">Nur du siehst diesen Bereich. Jeder Link funktioniert auf genau einem Gerät, nämlich auf dem, wo er zuerst geöffnet wird. <span id="admCount"></span></p>
-<form id="admAdd" class="admadd"><input id="admName" maxlength="40" autocomplete="off" placeholder="Name, z. B. Lena" aria-label="Name des Freundes"><button class="pri" type="submit">Link erstellen</button></form>
-<p class="note" id="admMsg" role="status"></p>
-<ul class="admlist" id="admList"></ul>
-</div></section>
+
 
 <script>
 {
@@ -601,54 +589,8 @@ $('#setFile').addEventListener('change',async e=>{
 });
 
 
-/* Verwaltung der persönlichen Links (nur mit Besitzer-Link sichtbar) */
-let ADM=null;
-const admMsg=t=>{$('#admMsg').textContent=t};
-const fmtDate=iso=>iso?new Date(iso).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}):'';
-async function admApi(body){
-  const r=await fetch('/api/links',body?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),cache:'no-store'}:{cache:'no-store'});
-  const j=await r.json().catch(()=>null);
-  if(j&&j.links)ADM=j;
-  if(!r.ok)throw Object.assign(new Error('api'),{code:j&&j.error});
-  return j;
-}
-function admRender(){
-  if(!ADM)return;
-  $('#admCount').textContent=`${ADM.links.length} von ${ADM.max} Links vergeben.`;
-  const full=ADM.links.length>=ADM.max;
-  $('#admName').disabled=full;$('#admAdd').querySelector('button').disabled=full;
-  if(full)$('#admName').placeholder='Alle Links vergeben. Lösche einen, um Platz zu machen.';
-  const ul=$('#admList');ul.innerHTML='';
-  if(!ADM.links.length){const li=document.createElement('li');li.innerHTML='<span class="who"><small>Noch keine Links. Erstelle oben den ersten.</small></span>';ul.appendChild(li);return}
-  for(const l of ADM.links){
-    const li=document.createElement('li');
-    li.innerHTML=`<span class="who"><b>${ESC(l.name)}<span class="badge ${l.status}">${l.status}</span></b><small>${l.status==='offen'?'Noch nicht geöffnet · erstellt '+fmtDate(l.created):l.activated?'Aktiviert am '+fmtDate(l.activated):''}</small></span><span class="acts"></span>`;
-    const acts=li.querySelector('.acts');
-    const btn=(label,fn,cls)=>{const b=document.createElement('button');b.type='button';b.textContent=label;if(cls)b.className=cls;b.onclick=()=>fn(b);acts.appendChild(b);return b};
-    if(l.status==='offen')btn('Link kopieren',async()=>{
-      try{await navigator.clipboard.writeText(l.url);admMsg(`Link für ${l.name} kopiert. Schick ihn per Nachricht.`)}
-      catch(e){let i=li.querySelector('input.url');if(!i){i=document.createElement('input');i.className='url';i.readOnly=true;i.value=l.url;li.appendChild(i)}i.focus();i.select();admMsg('Kopieren nicht erlaubt: Der Link ist markiert, kopiere ihn von Hand.')}
-    },'pri');
-    if(l.status==='aktiv')btn('Gerät zurücksetzen',()=>act({action:'reset',token:l.token},`${l.name}: Gerät zurückgesetzt. Der Link funktioniert jetzt auf dem nächsten Gerät, das ihn öffnet.`));
-    if(l.status==='gesperrt')btn('Entsperren',()=>act({action:'unblock',token:l.token},`${l.name} ist entsperrt.`));
-    else btn('Sperren',()=>act({action:'block',token:l.token},`${l.name} ist gesperrt.`));
-    let armed=0;btn('Löschen',b=>{if(!armed){armed=1;b.textContent='Wirklich löschen?';setTimeout(()=>{armed=0;b.textContent='Löschen'},3500);return}
-      act({action:'delete',token:l.token},`Link von ${l.name} gelöscht.`)});
-    ul.appendChild(li);
-  }
-}
-async function act(body,ok){
-  try{await admApi(body);admRender();admMsg(ok)}
-  catch(e){admMsg(e.code==='max'?`Es sind schon ${ADM.max} Links vergeben.`:'Das hat nicht geklappt. Lade die Seite neu und versuche es noch einmal.')}
-}
-$('#admAdd').addEventListener('submit',async e=>{e.preventDefault();
-  const name=$('#admName').value.trim();if(!name){admMsg('Gib zuerst einen Namen ein.');return}
-  await act({action:'create',name},`Link für ${name} erstellt. Tippe bei ${name} auf „Link kopieren“.`);$('#admName').value='';});
-if(!IN_CLAUDE)fetch('/api/me',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(async me=>{
-  if(!me||!me.owner)return;
-  $('#admin').hidden=false;
-  try{await admApi();admRender()}catch(e){admMsg('Die Liste konnte nicht geladen werden.')}
-}).catch(()=>{});
+/* Besitzer sieht oben den Weg zur Verwaltung */
+if(!IN_CLAUDE)fetch('/api/me',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(me=>{if(me&&me.owner)$('#adminLink').hidden=false}).catch(()=>{});
 
 /* Leiste für Handschrift-Sets */
 function setsUI(){

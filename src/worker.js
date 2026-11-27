@@ -92,6 +92,8 @@ export default {
     if (!who) return url.pathname.startsWith("/api/") ? json({ error: "forbidden" }, 403) : denied();
     if (url.pathname === "/api/me") return json({ owner: !!who.owner, name: who.link ? who.link.name : null });
     if (url.pathname === "/api/links") return apiLinks(request, env, who);
+    // Verwaltung nur für den Besitzer
+    if (/^\/admin(\.html)?\/?$/.test(url.pathname) && !who.owner) return denied();
 
     const res = await env.ASSETS.fetch(request);
     const out = new Response(res.body, res);
