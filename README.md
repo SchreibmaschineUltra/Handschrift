@@ -11,14 +11,12 @@ Alles läuft im Browser, die Handschrift bleibt auf dem eigenen Gerät.
 
 Der GoodNotes-Export nutzt [goodnotes-codec](https://github.com/Taylor-Nilsen/goodnotes-codec) (MIT-Lizenz, siehe `THIRD_PARTY_LICENSE-goodnotes-codec.txt`). Das Format ist inoffiziell nachgebaut; dieses Projekt ist nicht mit GoodNotes verbunden.
 
-## Zugang nur mit persönlichem Link (Cloudflare Pages)
+## Zugang nur mit persönlichem Link (Cloudflare Worker)
 
-Läuft die Seite über Cloudflare Pages, lässt `functions/_middleware.js` nur Besucher mit persönlichem Link herein:
+Auf Cloudflare läuft der Worker `src/worker.js` vor jeder Anfrage und lässt nur Besucher mit persönlichem Link herein; die Seite selbst liegt in `public/`.
 
 - Jeder Freundes-Link (`/?k=…`) wird beim ersten Öffnen an dieses Gerät gebunden; auf anderen Geräten erscheint „Link schon vergeben“.
 - Höchstens 15 Freundes-Links.
-- Der Besitzer-Link (`/?k=` + `OWNER_TOKEN`) funktioniert auf allen Geräten und zeigt den Bereich „Freunde verwalten“: Link erstellen, kopieren, Gerät zurücksetzen, sperren, löschen.
+- Der Besitzer-Link (`/?k=` + `OWNER_TOKEN`) funktioniert auf allen Geräten und zeigt den Bereich „Freunde verwalten“.
 
-Einstellungen im Pages-Projekt:
-- KV-Namespace als Binding `DB`
-- Geheime Variable `OWNER_TOKEN`: langer Zufallswert, nur dem Besitzer bekannt
+Einstellungen: siehe `wrangler.toml` (KV-Speicher `DB`). Den geheimen `OWNER_TOKEN` im Dashboard unter Worker → Settings → Variables and Secrets eintragen.
