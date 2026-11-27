@@ -2,6 +2,9 @@
 name = "handschrift"
 main = "src/worker.js"
 compatibility_date = "2026-11-01"
+# Nur die Hauptadresse, keine Vorschau-Adressen
+workers_dev = true
+preview_urls = false
 
 [assets]
 directory = "./public"
