@@ -5,6 +5,8 @@ compatibility_date = "2026-11-01"
 # Nur die Hauptadresse, keine Vorschau-Adressen
 workers_dev = true
 preview_urls = false
+# Im Dashboard gesetzte Variablen bei Updates nicht löschen
+keep_vars = true
 
 [assets]
 directory = "./public"
