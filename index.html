@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Deine Handschrift</title>
+<title>SchreibmaschineUltra</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -16,7 +16,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Manrope,syste
 .band{padding:clamp(22px,4vw,48px) max(5vw,16px)}
 .wrap{max-width:1180px;margin:0 auto}
 header{background:var(--blue);color:#fff}
-header h1{font-size:clamp(30px,5vw,46px);line-height:1.05;margin:0 0 6px;font-weight:800;text-wrap:balance}
+header h1{font-size:clamp(24px,6.5vw,46px);overflow-wrap:anywhere;line-height:1.05;margin:0;font-weight:800;text-wrap:balance}
 header p{margin:0;max-width:62ch;opacity:.9}
 h2{font-size:22px;margin:0 0 4px;font-weight:800}
 .sub{color:var(--mute);margin:0 0 16px;font-size:15px}
@@ -80,8 +80,7 @@ select{width:100%;background:var(--bg)}
 @media(prefers-reduced-motion:reduce){.prog i{transition:none}}
 </style></head><body>
 <header class="band"><div class="wrap">
-<h1>Schreib einmal das Alphabet – dann schreibt die Seite für dich</h1>
-<p>Zeichne jeden Buchstaben ins Feld. Danach erscheint jeder Text, den du eintippst, in deiner eigenen Handschrift.</p>
+<h1>SchreibmaschineUltra</h1>
 </div></header>
 <nav class="setbar" aria-label="Handschrift-Sets"><div class="wrap sets">
 <label for="setSel">Handschrift-Set</label>
@@ -350,7 +349,7 @@ function makePdf(){
   return{bytes:b,pages:pages.length};
 }
 $('#inks').innerHTML=INKS.map(([c,n])=>`<div class="ink"><button data-c="${c}" aria-label="${n}" aria-pressed="false" style="background:${c}"></button><small>${n}</small></div>`).join('')
-  +'<div class="ink"><label class="pick" aria-pressed="false"><input type="color" id="inkPick" value="#2e7d32" aria-label="Eigene Farbe wählen"></label><small>Eigene</small></div>';
+  +'<div class="ink"><label class="pick" aria-pressed="false"><input type="color" id="inkPick" value="#2e7d32" aria-label="Farbe aus dem Farbspektrum wählen"></label><small>Farbspektrum</small></div>';
 const sw=()=>$('#inks').querySelectorAll('button,.pick');
 function setInk(c,custom){
   ink=c;
