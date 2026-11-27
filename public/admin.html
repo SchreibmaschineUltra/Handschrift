@@ -76,10 +76,8 @@ tr:last-child td{border-bottom:0}
 .badge.aktiv{background:light-dark(#dff1e8,#1d4a3a);color:light-dark(#1d6146,#b9ecd3)}.badge.aktiv i{background:var(--ok)}
 .badge.offen{background:light-dark(#fff3c9,#4a3e12);color:light-dark(#6b5200,#f3df9a)}.badge.offen i{background:var(--warn)}
 .badge.gesperrt{background:light-dark(#fadbdd,#4d1d21);color:light-dark(#9e1a22,#f4b9be)}.badge.gesperrt i{background:var(--bad)}
-.ip{white-space:nowrap;font-weight:600}
 .none{color:var(--mute)}
 .acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:nowrap}
-td.c-dev{white-space:nowrap}
 .acts button{min-height:36px;padding:0 11px;font-size:13px}
 .url{width:100%;margin-top:8px;min-height:36px;font:13px Figtree,system-ui,sans-serif;padding:0 10px;border-radius:8px;border:1.5px dashed var(--line);background:var(--bg);color:var(--ink)}
 .empty td{text-align:center;color:var(--mute);padding:34px 16px}
@@ -89,11 +87,10 @@ td.c-dev{white-space:nowrap}
   tr:last-child{border-bottom:0}
   td{display:block;padding:0;border:0}
   td.c-name{grid-column:1}td.c-status{grid-column:2;grid-row:1;align-self:start}
-  td.c-seen,td.c-ip,td.c-dev{grid-column:1/-1;font-size:14px}
-  td.c-seen::before,td.c-ip::before,td.c-dev::before{content:attr(data-l) ": ";color:var(--mute)}
+  td.c-cr,td.c-ac{grid-column:1/-1;font-size:14px}
+  td.c-cr::before,td.c-ac::before{content:attr(data-l) ": ";color:var(--mute)}
   td.c-acts{grid-column:1/-1;margin-top:8px}
   .acts{justify-content:flex-start;flex-wrap:wrap}
-  td.c-dev{white-space:normal}
   .empty{display:block}
 }
 .note{color:var(--mute);font-size:13px;margin:16px 2px 0;max-width:75ch}
@@ -112,14 +109,14 @@ td.c-dev{white-space:nowrap}
 <div class="kpi"><b id="kAktiv">–</b><span><i style="background:var(--ok)"></i>aktiv</span></div>
 <div class="kpi"><b id="kOffen">–</b><span><i style="background:var(--warn)"></i>noch nicht geöffnet</span></div>
 <div class="kpi"><b id="kGesperrt">–</b><span><i style="background:var(--bad)"></i>gesperrt</span></div>
-<div class="kpi"><b id="kHeute">–</b><span><i style="background:var(--enamel)"></i>heute besucht</span></div>
+<div class="kpi"><b id="kFrei">–</b><span><i style="background:var(--free)"></i>Plätze frei</span></div>
 </div>
 <div class="cap"><div class="lab"><span>Belegung</span><span><b id="capUsed">–</b> von <b id="capMax">–</b> Links vergeben</span></div>
 <div class="meter" id="meter" role="img" aria-label="Belegung der Links"></div></div>
 
 <div class="panel">
 <div class="tools">
-<input class="search" id="q" type="search" placeholder="Suchen nach Name oder IP-Adresse" aria-label="Suchen">
+<input class="search" id="q" type="search" placeholder="Suchen nach Name" aria-label="Suchen">
 <div class="seg" id="filters" role="group" aria-label="Filter">
 <button type="button" data-f="alle" aria-pressed="true">Alle</button>
 <button type="button" data-f="aktiv" aria-pressed="false">Aktiv</button>
@@ -131,29 +128,17 @@ td.c-dev{white-space:nowrap}
 <form class="addrow" id="add" hidden><input id="name" maxlength="40" autocomplete="off" placeholder="Name, z. B. Lena" aria-label="Name des Freundes"><button class="pri" type="submit">Link erstellen</button><button type="button" id="addCancel">Abbrechen</button></form>
 <p class="msg" id="msg" role="status"></p>
 <table>
-<thead><tr><th>Name</th><th>Status</th><th>Zuletzt besucht</th><th>IP-Adresse</th><th>Gerät</th><th><span class="sr" style="position:absolute;left:-9999px">Aktionen</span></th></tr></thead>
-<tbody id="rows"><tr class="empty"><td colspan="6">Register wird geladen …</td></tr></tbody>
+<thead><tr><th>Name</th><th>Status</th><th>Erstellt</th><th>Aktiviert</th><th><span class="sr" style="position:absolute;left:-9999px">Aktionen</span></th></tr></thead>
+<tbody id="rows"><tr class="empty"><td colspan="5">Register wird geladen …</td></tr></tbody>
 </table>
 </div>
-<p class="note">Besuchszeit, IP-Adresse, ungefährer Ort und Gerät werden beim Öffnen der Seite gespeichert, höchstens alle 30 Minuten oder bei neuer IP-Adresse. Sag deinen Freunden, dass du das siehst.</p>
 </main>
 <script>
 {
 const $=s=>document.querySelector(s);
 const ESC=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let REG=null;try{REG=new Intl.DisplayNames(['de'],{type:'region'})}catch(e){}
-const land=c=>{if(!c||c==='XX'||c==='T1')return'';try{return REG?REG.of(c):c}catch(e){return c}};
 const fmtFull=iso=>new Date(iso).toLocaleString('de-DE',{weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 const fmtDay=iso=>new Date(iso).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'});
-function rel(iso){
-  const d=new Date(iso),now=new Date(),m=Math.round((now-d)/60000);
-  if(m<2)return'gerade eben';if(m<60)return`vor ${m} Min.`;
-  const t=d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
-  const day=x=>new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime();
-  const dd=Math.round((day(now)-day(d))/864e5);
-  if(dd===0)return`heute, ${t}`;if(dd===1)return`gestern, ${t}`;if(dd<7)return`vor ${dd} Tagen`;
-  return fmtDay(iso);
-}
 let DATA=null,filter='alle',q='',loadedAt=null;
 const msg=t=>{$('#msg').textContent=t};
 async function api(body){
@@ -165,8 +150,7 @@ async function api(body){
 }
 function kpis(){
   const n=s=>DATA.links.filter(l=>l.status===s).length,a=n('aktiv'),o=n('offen'),g=n('gesperrt');
-  const today=new Date().toDateString(),h=DATA.links.filter(l=>l.seen&&new Date(l.seen.at).toDateString()===today).length;
-  $('#kAktiv').textContent=a;$('#kOffen').textContent=o;$('#kGesperrt').textContent=g;$('#kHeute').textContent=h;
+  $('#kAktiv').textContent=a;$('#kOffen').textContent=o;$('#kGesperrt').textContent=g;$('#kFrei').textContent=Math.max(0,DATA.max-DATA.links.length);
   $('#capUsed').textContent=DATA.links.length;$('#capMax').textContent=DATA.max;
   const pct=x=>(x/DATA.max*100)+'%';
   $('#meter').innerHTML=`<i style="width:${pct(a)};background:var(--ok)"></i><i style="width:${pct(o)};background:var(--warn)"></i><i style="width:${pct(g)};background:var(--bad)"></i>`;
@@ -180,17 +164,14 @@ function render(){
   kpis();
   const tb=$('#rows');tb.innerHTML='';
   const ql=q.toLowerCase();
-  const items=DATA.links.filter(l=>(filter==='alle'||l.status===filter)&&(!ql||l.name.toLowerCase().includes(ql)||(l.seen&&l.seen.ip.includes(ql))))
-    .sort((a,b)=>(b.seen?Date.parse(b.seen.at):0)-(a.seen?Date.parse(a.seen.at):0)||a.created.localeCompare(b.created));
-  if(!items.length){tb.innerHTML=`<tr class="empty"><td colspan="6">${DATA.links.length?'Keine Einträge für diese Auswahl.':'Noch keine Freunde. Tippe auf „+ Neuer Freund“.'}</td></tr>`;return}
+  const items=DATA.links.filter(l=>(filter==='alle'||l.status===filter)&&(!ql||l.name.toLowerCase().includes(ql)));
+  if(!items.length){tb.innerHTML=`<tr class="empty"><td colspan="5">${DATA.links.length?'Keine Einträge für diese Auswahl.':'Noch keine Freunde. Tippe auf „+ Neuer Freund“.'}</td></tr>`;return}
   for(const l of items){
-    const s=l.seen,where=s?[s.city,land(s.country)].filter(Boolean).join(', '):'';
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td class="c-name"><span class="nm">${ESC(l.name)}</span><span class="sub">Erstellt ${fmtDay(l.created)}${l.activated?' · aktiviert '+fmtDay(l.activated):''}</span></td>
+    tr.innerHTML=`<td class="c-name"><span class="nm">${ESC(l.name)}</span></td>
       <td class="c-status"><span class="badge ${l.status}"><i></i>${l.status}</span></td>
-      <td class="c-seen" data-l="Zuletzt besucht">${s?`<span title="${ESC(fmtFull(s.at))}">${rel(s.at)}</span>`:'<span class="none">noch nie</span>'}</td>
-      <td class="c-ip" data-l="IP-Adresse">${s&&s.ip?`<span class="ip">${ESC(s.ip)}</span>${where?`<span class="sub">${ESC(where)}</span>`:''}`:'<span class="none">–</span>'}</td>
-      <td class="c-dev" data-l="Gerät">${s&&s.device?ESC(s.device):'<span class="none">–</span>'}</td>
+      <td class="c-cr" data-l="Erstellt">${fmtDay(l.created)}</td>
+      <td class="c-ac" data-l="Aktiviert">${l.activated?`<span title="${ESC(fmtFull(l.activated))}">${fmtDay(l.activated)}</span>`:'<span class="none">noch nicht</span>'}</td>
       <td class="c-acts"><div class="acts"></div></td>`;
     const acts=tr.querySelector('.acts');
     const btn=(label,fn,cls)=>{const b=document.createElement('button');b.type='button';b.textContent=label;if(cls)b.className=cls;b.onclick=()=>fn(b);acts.appendChild(b)};
@@ -218,7 +199,7 @@ $('#add').addEventListener('submit',async e=>{e.preventDefault();
 $('#filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;filter=b.dataset.f;
   for(const x of $('#filters').children)x.setAttribute('aria-pressed',x===b);render()});
 $('#q').addEventListener('input',e=>{q=e.target.value.trim();render()});
-const load=()=>api().then(()=>{render()}).catch(e=>{$('#rows').innerHTML=`<tr class="empty"><td colspan="6">${e.status===403?'Keine Berechtigung. Öffne die Verwaltung über deinen Besitzer-Link.':'Das Register konnte nicht geladen werden. Lade die Seite neu.'}</td></tr>`;$('#stand').textContent=''});
+const load=()=>api().then(()=>{render()}).catch(e=>{$('#rows').innerHTML=`<tr class="empty"><td colspan="5">${e.status===403?'Keine Berechtigung. Öffne die Verwaltung über deinen Besitzer-Link.':'Das Register konnte nicht geladen werden. Lade die Seite neu.'}</td></tr>`;$('#stand').textContent=''});
 $('#reload').onclick=()=>{msg('');load()};
 load();
 setInterval(()=>{if(!document.hidden)load()},60000);
